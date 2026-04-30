@@ -8,3 +8,7 @@ pdf_content.txt
 Thumbs.db
 .vscode/
 
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/

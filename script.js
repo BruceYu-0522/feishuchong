@@ -5,7 +5,10 @@ const {
   submitReview,
 } = window.DevFlowCore;
 
+const API_BASE_URL = "http://127.0.0.1:8000";
+
 let pipeline = null;
+let runtimeMode = "local";
 
 const elements = {
   form: document.querySelector("#requestForm"),
@@ -58,6 +61,48 @@ function getCurrentStage() {
   return STAGES.find((stage) => stage.id === pipeline.currentStageId);
 }
 
+async function requestApi(path, options = {}) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    headers: { "Content-Type": "application/json" },
+    ...options,
+  });
+
+  if (!response.ok) {
+    let message = `API 请求失败：${response.status}`;
+    try {
+      const payload = await response.json();
+      message = payload.detail || message;
+    } catch (error) {
+      message = response.statusText || message;
+    }
+    throw new Error(message);
+  }
+
+  return response.json();
+}
+
+async function createPipelineFromApi(requirement) {
+  return requestApi("/pipelines", {
+    method: "POST",
+    body: JSON.stringify({ requirement }),
+  });
+}
+
+async function runNextFromApi() {
+  return requestApi(`/pipelines/${pipeline.id}/run-next`, { method: "POST" });
+}
+
+async function runUntilReviewFromApi() {
+  return requestApi(`/pipelines/${pipeline.id}/run-until-review`, { method: "POST" });
+}
+
+async function submitReviewToApi(decision, reason = "") {
+  return requestApi(`/pipelines/${pipeline.id}/review`, {
+    method: "POST",
+    body: JSON.stringify({ decision, reason }),
+  });
+}
+
 function getNextInstruction() {
   if (!pipeline) {
     return {
@@ -102,26 +147,26 @@ function setStatusBadge() {
 
   if (!pipeline) {
     elements.pipelineStatus.textContent = "未创建";
-    elements.dockStatus.textContent = "未创建";
+    elements.dockStatus.textContent = runtimeMode === "api" ? "API 模式" : "未创建";
     return;
   }
 
   if (pipeline.status === "completed") {
     elements.pipelineStatus.textContent = "已完成";
-    elements.dockStatus.textContent = "已完成";
+    elements.dockStatus.textContent = runtimeMode === "api" ? "API 已完成" : "本地已完成";
     elements.pipelineStatus.classList.add("is-done");
     return;
   }
 
   if (pipeline.status === "waiting_review") {
     elements.pipelineStatus.textContent = "等待人工审批";
-    elements.dockStatus.textContent = "等待审批";
+    elements.dockStatus.textContent = runtimeMode === "api" ? "API 等待审批" : "本地等待审批";
     elements.pipelineStatus.classList.add("is-review");
     return;
   }
 
   elements.pipelineStatus.textContent = "可继续运行";
-  elements.dockStatus.textContent = "可继续运行";
+  elements.dockStatus.textContent = runtimeMode === "api" ? "API 可运行" : "本地可运行";
   elements.pipelineStatus.classList.add("is-running");
 }
 
@@ -214,25 +259,35 @@ function render() {
   renderControls();
 }
 
-function runUntilReviewOrComplete() {
+async function runUntilReviewOrComplete() {
   if (!pipeline) return;
-  while (pipeline.status === "ready") {
-    pipeline = runNextStage(pipeline);
+  if (runtimeMode === "api") {
+    pipeline = await runUntilReviewFromApi();
+  } else {
+    while (pipeline.status === "ready") {
+      pipeline = runNextStage(pipeline);
+    }
   }
   render();
 }
 
-elements.form.addEventListener("submit", (event) => {
+elements.form.addEventListener("submit", async (event) => {
   event.preventDefault();
-  pipeline = createPipeline(elements.requirementInput.value);
+  try {
+    pipeline = await createPipelineFromApi(elements.requirementInput.value);
+    runtimeMode = "api";
+  } catch (error) {
+    pipeline = createPipeline(elements.requirementInput.value);
+    runtimeMode = "local";
+  }
   elements.rejectReason.value = "";
   elements.dockRejectReason.value = "";
   render();
 });
 
-function runOneStage() {
+async function runOneStage() {
   if (!pipeline || pipeline.status !== "ready") return;
-  pipeline = runNextStage(pipeline);
+  pipeline = runtimeMode === "api" ? await runNextFromApi() : runNextStage(pipeline);
   render();
 }
 
@@ -242,9 +297,11 @@ elements.dockRunButton.addEventListener("click", runOneStage);
 elements.autoRunButton.addEventListener("click", runUntilReviewOrComplete);
 elements.dockAutoRunButton.addEventListener("click", runUntilReviewOrComplete);
 
-function approveCurrentStage() {
+async function approveCurrentStage() {
   if (!pipeline) return;
-  pipeline = submitReview(pipeline, { decision: "approve" });
+  pipeline = runtimeMode === "api"
+    ? await submitReviewToApi("approve")
+    : submitReview(pipeline, { decision: "approve" });
   elements.rejectReason.value = "";
   elements.dockRejectReason.value = "";
   render();
@@ -253,13 +310,15 @@ function approveCurrentStage() {
 elements.approveButton.addEventListener("click", approveCurrentStage);
 elements.dockApproveButton.addEventListener("click", approveCurrentStage);
 
-function rejectCurrentStage(reasonElement) {
+async function rejectCurrentStage(reasonElement) {
   if (!pipeline) return;
   try {
-    pipeline = submitReview(pipeline, {
-      decision: "reject",
-      reason: reasonElement.value,
-    });
+    pipeline = runtimeMode === "api"
+      ? await submitReviewToApi("reject", reasonElement.value)
+      : submitReview(pipeline, {
+          decision: "reject",
+          reason: reasonElement.value,
+        });
     elements.rejectReason.value = "";
     elements.dockRejectReason.value = "";
     render();
@@ -291,6 +350,7 @@ elements.dockRejectReason.addEventListener("input", () => {
 
 elements.resetButton.addEventListener("click", () => {
   pipeline = null;
+  runtimeMode = "local";
   elements.rejectReason.value = "";
   elements.dockRejectReason.value = "";
   render();
