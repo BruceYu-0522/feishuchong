@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DevFlow Engine 控制台</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="DevFlow 导航">
+      <a class="brand" href="#top" aria-label="DevFlow Engine">
+        <span class="brand-mark">D</span>
+        <span>
+          <strong>DevFlow</strong>
+          <small>AI Delivery Console</small>
+        </span>
+      </a>
+
+      <nav class="nav-list" aria-label="主导航">
+        <a class="active" href="#runner">流程运行</a>
+        <a href="#artifacts">阶段产物</a>
+        <a href="#review">人工审批</a>
+        <a href="#metrics">运行指标</a>
+      </nav>
+
+      <div class="side-note">
+        <span>当前策略</span>
+        <strong>Mock Agent first</strong>
+        <p>先跑通 Pipeline、审批和回退，再替换真实模型。</p>
+      </div>
+    </aside>
+
+    <main class="workspace" id="top">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">飞书 AI 校园大赛 · 第二阶段 Demo</p>
+          <h1>DevFlow Engine 控制台</h1>
+        </div>
+        <div class="topbar-actions">
+          <span class="status-pill" id="pipelineStatus">未创建</span>
+          <button class="ghost-button" id="resetButton" type="button">重置</button>
+        </div>
+      </header>
+
+      <section class="hero-panel" id="runner" aria-labelledby="runnerTitle">
+        <div class="hero-copy">
+          <p class="eyebrow">Pipeline Runner</p>
+          <h2 id="runnerTitle">输入一个需求，让 6 个 Mock Agent 跑完研发闭环。</h2>
+          <p>
+            这个 Demo 先验证流程：需求输入、阶段流转、人工审批、Reject 回退、重新生成和交付总结。
+          </p>
+        </div>
+
+        <form class="request-box" id="requestForm">
+          <label for="requirementInput">Demo 需求</label>
+          <textarea id="requirementInput" rows="4">给任务管理系统增加按优先级筛选任务的功能</textarea>
+          <div class="request-actions">
+            <button class="primary-button" type="submit">创建 Pipeline</button>
+            <button class="primary-button" id="runButton" type="button" disabled>执行当前阶段</button>
+            <button class="secondary-button" id="autoRunButton" type="button" disabled>自动演示到下个决策点</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="next-guide" aria-live="polite">
+        <span>下一步</span>
+        <strong id="nextStepTitle">先创建 Pipeline</strong>
+        <p id="nextStepHint">确认 Demo 需求后，点击“创建 Pipeline”。创建完成后，页面会告诉你下一步该执行哪个阶段。</p>
+      </section>
+
+      <section class="dashboard-grid">
+        <section class="panel stage-panel" aria-labelledby="stageTitle">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Stage Map</p>
+              <h2 id="stageTitle">Pipeline 阶段</h2>
+            </div>
+            <span class="mini-badge" id="stageCount">0 / 6</span>
+          </div>
+          <ol class="stage-list" id="stageList"></ol>
+        </section>
+
+        <section class="panel artifact-panel" id="artifacts" aria-labelledby="artifactTitle">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Artifact</p>
+              <h2 id="artifactTitle">当前阶段产物</h2>
+            </div>
+            <span class="mini-badge" id="currentAgent">等待创建</span>
+          </div>
+          <div class="artifact-empty" id="artifactEmpty">
+            <strong>还没有产物</strong>
+            <p>创建 Pipeline 后，点击“运行下一阶段”开始生成。</p>
+          </div>
+          <article class="artifact-card hidden" id="artifactCard">
+            <div class="artifact-meta">
+              <span id="artifactStage">阶段</span>
+              <span id="artifactTime">时间</span>
+            </div>
+            <pre id="artifactContent"></pre>
+          </article>
+        </section>
+      </section>
+
+      <section class="review-grid">
+        <section class="panel review-panel" id="review" aria-labelledby="reviewTitle">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Human-in-the-loop</p>
+              <h2 id="reviewTitle">人工审批</h2>
+            </div>
+            <span class="mini-badge" id="reviewState">暂无卡点</span>
+          </div>
+
+          <div class="review-empty" id="reviewEmpty">
+            <p>方案设计和代码评审阶段会暂停等待人工决策。</p>
+          </div>
+
+          <div class="review-controls hidden" id="reviewControls">
+            <label for="rejectReason">Reject 原因</label>
+            <textarea id="rejectReason" rows="3" placeholder="例如：缺少空状态处理"></textarea>
+            <div class="review-actions">
+              <button class="approve-button" id="approveButton" type="button">Approve</button>
+              <button class="reject-button" id="rejectButton" type="button">Reject</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" id="metrics" aria-labelledby="metricsTitle">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Metrics</p>
+              <h2 id="metricsTitle">运行指标</h2>
+            </div>
+          </div>
+          <div class="metrics-grid">
+            <div>
+              <span id="artifactMetric">0</span>
+              <p>阶段产物</p>
+            </div>
+            <div>
+              <span id="reviewMetric">0</span>
+              <p>审批记录</p>
+            </div>
+            <div>
+              <span>6</span>
+              <p>Mock Agent</p>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <section class="panel summary-panel" aria-labelledby="summaryTitle">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Demo Script</p>
+            <h2 id="summaryTitle">演示主线</h2>
+          </div>
+        </div>
+        <div class="script-steps">
+          <span>输入需求</span>
+          <span>运行到方案审批</span>
+          <span>故意 Reject 一次</span>
+          <span>重新生成方案</span>
+          <span>Approve 后继续</span>
+          <span>输出交付总结</span>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="command-dock" aria-label="演示快捷操作条">
+    <div class="dock-status">
+      <span>当前状态</span>
+      <strong id="dockStatus">未创建</strong>
+    </div>
+    <div class="dock-guide">
+      <span>下一步</span>
+      <strong id="dockNextTitle">先创建 Pipeline</strong>
+    </div>
+    <div class="dock-actions">
+      <button class="primary-button" id="dockRunButton" type="button" disabled>执行当前阶段</button>
+      <button class="secondary-button" id="dockAutoRunButton" type="button" disabled>自动到决策点</button>
+      <input id="dockRejectReason" type="text" placeholder="Reject 原因，如：缺少空状态处理" disabled>
+      <button class="approve-button" id="dockApproveButton" type="button" disabled>Approve</button>
+      <button class="reject-button" id="dockRejectButton" type="button" disabled>Reject</button>
+    </div>
+  </div>
+
+  <script src="pipeline-core.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+# Local contest reference files
+*.pdf
+*.docx
+pdf_content.txt
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+
