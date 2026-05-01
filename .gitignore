@@ -12,3 +12,6 @@ Thumbs.db
 __pycache__/
 *.py[cod]
 .pytest_cache/
+
+# Local server logs
+*.log
