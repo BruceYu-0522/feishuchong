@@ -49,13 +49,12 @@ def current_stage(pipeline: Pipeline) -> Stage:
     return pipeline.stages[stage_index(pipeline.currentStageId)]
 
 
-def design_visual_plan(pipeline: Pipeline) -> dict:
-    reject_reason = ""
-    for record in reversed(pipeline.reviewHistory):
-        if record.stageId == "design" and record.decision == "reject":
-            reject_reason = record.reason
-            break
+def summarize_requirement(requirement: str) -> str:
+    clean_requirement = requirement.strip().rstrip("。！？")
+    return f"{clean_requirement[:18]}..." if len(clean_requirement) > 18 else clean_requirement
 
+
+def priority_visual_plan(reject_reason: str) -> dict:
     return {
         "title": "优先级筛选方案蓝图",
         "summary": (
@@ -74,11 +73,44 @@ def design_visual_plan(pipeline: Pipeline) -> dict:
     }
 
 
-def create_pipeline(requirement: str) -> Pipeline:
+def generic_visual_plan(requirement: str, reject_reason: str) -> dict:
+    topic = summarize_requirement(requirement)
+    return {
+        "title": f"{topic}方案蓝图",
+        "summary": (
+            f"本版方案已补充处理：{reject_reason}"
+            if reject_reason
+            else f"围绕“{topic}”拆成需求理解、影响范围、实现路径和验收兜底四个设计节点。"
+        ),
+        "nodes": [
+            {"id": "intent", "label": "需求目标", "detail": f"明确要完成：{topic}"},
+            {"id": "scope", "label": "影响范围", "detail": "识别需要调整的数据、接口、页面或交互"},
+            {"id": "implementation", "label": "实现路径", "detail": "拆分核心逻辑、UI 状态和边界处理"},
+            {"id": "validation", "label": "验收兜底", "detail": "补充测试、异常状态和人工确认点"},
+        ],
+        "edges": [["intent", "scope"], ["scope", "implementation"], ["implementation", "validation"]],
+        "risks": ["需求边界需要确认", "实现方案需要覆盖异常状态"],
+    }
+
+
+def design_visual_plan(pipeline: Pipeline) -> dict:
+    reject_reason = ""
+    for record in reversed(pipeline.reviewHistory):
+        if record.stageId == "design" and record.decision == "reject":
+            reject_reason = record.reason
+            break
+
+    if any(keyword in pipeline.requirement for keyword in ["优先级", "priority", "筛选"]):
+        return priority_visual_plan(reject_reason)
+    return generic_visual_plan(pipeline.requirement, reject_reason)
+
+
+def create_pipeline(requirement: str, project_path: str | None = None) -> Pipeline:
     clean_requirement = requirement.strip() if requirement and requirement.strip() else DEFAULT_REQUIREMENT
     return Pipeline(
         id=f"df-{uuid4().hex[:10]}",
         requirement=clean_requirement,
+        projectPath=project_path.strip() if project_path and project_path.strip() else None,
         status="ready",
         currentStageId="requirement",
         stages=build_stages(),

@@ -33,6 +33,10 @@
         <textarea id="requirementInput" rows="1">给任务管理系统增加按优先级筛选任务的功能</textarea>
         <button class="primary-button" type="submit">开始生成</button>
       </form>
+      <label class="project-path-field" for="projectPathInput">
+        <span>项目文件夹路径（可选）</span>
+        <input id="projectPathInput" type="text" placeholder="例如：C:\Users\22073\Desktop\my-app">
+      </label>
     </section>
 
     <section class="next-strip" aria-live="polite">
@@ -44,6 +48,15 @@
       <div class="action-buttons">
         <button class="primary-button" id="runButton" type="button" disabled>自动运行</button>
         <button class="secondary-button hidden" id="autoRunButton" type="button" disabled>自动到确认点</button>
+      </div>
+    </section>
+
+    <section class="run-monitor" id="runMonitor" aria-live="polite">
+      <div class="run-dot" id="runDot"></div>
+      <div>
+        <span>运行状态</span>
+        <strong id="runMonitorTitle">尚未开始</strong>
+        <p id="runMonitorDetail">点击“开始生成”后，这里会实时显示当前正在执行的阶段。</p>
       </div>
     </section>
 
@@ -89,7 +102,7 @@
           </div>
           <div class="blueprint-flow" id="blueprintFlow"></div>
           <figure class="pencil-preview">
-            <img src="docs/assets/pencil-blueprint.svg" alt="Pencil 草图：优先级筛选方案蓝图">
+            <img id="pencilSketchImage" src="docs/assets/pencil-blueprint.svg" alt="Pencil 草图预览">
           </figure>
           <div class="blueprint-risks" id="blueprintRisks"></div>
           <a class="pencil-link hidden" id="pencilSketchLink" href="#" target="_blank" rel="noreferrer">

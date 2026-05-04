@@ -27,6 +27,19 @@ def test_create_pipeline_returns_ready_state():
     assert pipeline["artifacts"] == {}
 
 
+def test_create_pipeline_accepts_project_path():
+    response = client.post(
+        "/pipelines",
+        json={
+            "requirement": "给任务管理系统增加按优先级筛选任务的功能",
+            "projectPath": "C:/tmp/my-app",
+        },
+    )
+
+    pipeline = response.json()
+    assert pipeline["projectPath"] == "C:/tmp/my-app"
+
+
 def test_run_next_reaches_design_review_checkpoint():
     pipeline = create_pipeline()
     pipeline_id = pipeline["id"]
@@ -43,6 +56,20 @@ def test_run_next_reaches_design_review_checkpoint():
     assert design["artifacts"]["design"]["visualPlan"]["title"] == "优先级筛选方案蓝图"
     assert len(design["artifacts"]["design"]["visualPlan"]["nodes"]) >= 4
     assert design["artifacts"]["design"]["pencilSketchPath"].endswith("docs/pencil/design-blueprint.pen")
+
+
+def test_design_blueprint_updates_for_custom_requirement():
+    response = client.post(
+        "/pipelines",
+        json={"requirement": "给登录页面增加短信验证码校验"},
+    )
+    pipeline = response.json()
+    design = client.post(f"/pipelines/{pipeline['id']}/run-until-review").json()
+
+    visual_plan = design["artifacts"]["design"]["visualPlan"]
+    assert visual_plan["title"] == "给登录页面增加短信验证码校验方案蓝图"
+    assert "短信验证码" in visual_plan["summary"]
+    assert visual_plan["title"] != "优先级筛选方案蓝图"
 
 
 def test_reject_requires_reason_and_regenerates_design_with_reason():

@@ -41,6 +41,12 @@ assert.equal(waitingForPlanReview.artifacts.design.visualPlan.title, "优先级�
 assert.ok(waitingForPlanReview.artifacts.design.visualPlan.nodes.length >= 4);
 assert.equal(waitingForPlanReview.artifacts.design.pencilSketchPath, "docs/pencil/design-blueprint.pen");
 
+const customPipeline = createPipeline("给登录页面增加短信验证码校验");
+const customDesign = runUntilReviewOrComplete(customPipeline);
+assert.equal(customDesign.artifacts.design.visualPlan.title, "给登录页面增加短信验证码校验方案蓝图");
+assert.match(customDesign.artifacts.design.visualPlan.summary, /短信验证码/);
+assert.notEqual(customDesign.artifacts.design.visualPlan.title, "优先级筛选方案蓝图");
+
 const rejected = submitReview(waitingForPlanReview, {
   decision: "reject",
   reason: "缺少空状态处理",

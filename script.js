@@ -9,15 +9,21 @@ const API_BASE_URL = "http://127.0.0.1:8000";
 
 let pipeline = null;
 let runtimeMode = "local";
+let isRunning = false;
+let runningStageName = "";
 
 const elements = {
   form: document.querySelector("#requestForm"),
   requirementInput: document.querySelector("#requirementInput"),
+  projectPathInput: document.querySelector("#projectPathInput"),
   runButton: document.querySelector("#runButton"),
   autoRunButton: document.querySelector("#autoRunButton"),
   resetButton: document.querySelector("#resetButton"),
   nextStepTitle: document.querySelector("#nextStepTitle"),
   nextStepHint: document.querySelector("#nextStepHint"),
+  runMonitor: document.querySelector("#runMonitor"),
+  runMonitorTitle: document.querySelector("#runMonitorTitle"),
+  runMonitorDetail: document.querySelector("#runMonitorDetail"),
   pipelineStatus: document.querySelector("#pipelineStatus"),
   stageCount: document.querySelector("#stageCount"),
   stageList: document.querySelector("#stageList"),
@@ -31,6 +37,7 @@ const elements = {
   visualPlanTitle: document.querySelector("#visualPlanTitle"),
   visualPlanSummary: document.querySelector("#visualPlanSummary"),
   blueprintFlow: document.querySelector("#blueprintFlow"),
+  pencilSketchImage: document.querySelector("#pencilSketchImage"),
   blueprintRisks: document.querySelector("#blueprintRisks"),
   pencilSketchLink: document.querySelector("#pencilSketchLink"),
   reviewPanel: document.querySelector("#review"),
@@ -82,7 +89,10 @@ async function requestApi(path, options = {}) {
 async function createPipelineFromApi(requirement) {
   return requestApi("/pipelines", {
     method: "POST",
-    body: JSON.stringify({ requirement }),
+    body: JSON.stringify({
+      requirement,
+      projectPath: elements.projectPathInput.value,
+    }),
   });
 }
 
@@ -137,6 +147,12 @@ function setStatusBadge() {
   elements.nextStepHint.textContent = instruction.hint;
   elements.runButton.textContent = instruction.runLabel;
 
+  if (isRunning) {
+    elements.pipelineStatus.textContent = "运行中";
+    elements.pipelineStatus.classList.add("is-running");
+    return;
+  }
+
   if (!pipeline) {
     elements.pipelineStatus.textContent = "未开始";
     return;
@@ -156,6 +172,41 @@ function setStatusBadge() {
 
   elements.pipelineStatus.textContent = "可继续运行";
   elements.pipelineStatus.classList.add("is-running");
+}
+
+function renderRunMonitor() {
+  elements.runMonitor.classList.toggle("is-running", isRunning);
+  elements.runMonitor.classList.toggle("is-review", pipeline && pipeline.status === "waiting_review");
+  elements.runMonitor.classList.toggle("is-done", pipeline && pipeline.status === "completed");
+
+  if (isRunning) {
+    elements.runMonitorTitle.textContent = `正在运行：${runningStageName || "自动工作流"}`;
+    elements.runMonitorDetail.textContent = "系统正在自动执行，遇到人工筛查点会停下来让你确认。";
+    return;
+  }
+
+  if (!pipeline) {
+    elements.runMonitorTitle.textContent = "尚未开始";
+    elements.runMonitorDetail.textContent = "点击“开始生成”后，这里会实时显示当前正在执行的阶段。";
+    return;
+  }
+
+  if (pipeline.status === "waiting_review") {
+    const stage = getCurrentStage();
+    elements.runMonitorTitle.textContent = `已暂停：等待确认 ${stage.name}`;
+    elements.runMonitorDetail.textContent = "请查看当前产物，选择通过或打回。";
+    return;
+  }
+
+  if (pipeline.status === "completed") {
+    elements.runMonitorTitle.textContent = "已完成：交付总结已生成";
+    elements.runMonitorDetail.textContent = "本次工作流已经跑完，可以查看最终产物。";
+    return;
+  }
+
+  const stage = getCurrentStage();
+  elements.runMonitorTitle.textContent = `待运行：${stage.name}`;
+  elements.runMonitorDetail.textContent = "点击“自动运行”，系统会继续跑到下一个人工筛查点。";
 }
 
 function renderStages() {
@@ -239,6 +290,8 @@ function renderVisualPlan(visualPlan, pencilSketchPath) {
       return card;
     })
   );
+  elements.pencilSketchImage.src = createPencilSketchImage(visualPlan);
+  elements.pencilSketchImage.alt = `Pencil 草图：${visualPlan.title}`;
 
   elements.blueprintRisks.replaceChildren(
     ...visualPlan.risks.map((risk) => {
@@ -253,6 +306,63 @@ function renderVisualPlan(visualPlan, pencilSketchPath) {
     elements.pencilSketchLink.href = pencilSketchPath;
     elements.pencilSketchLink.textContent = `打开 Pencil 草图：${pencilSketchPath}`;
   }
+}
+
+function escapeSvgText(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function createPencilSketchImage(visualPlan) {
+  const nodes = visualPlan.nodes.slice(0, 4);
+  const colors = [
+    ["#EEF4FF", "#8FB4FF"],
+    ["#F0FBFF", "#73D5FF"],
+    ["#F4F8F2", "#9ED08B"],
+    ["#FFF7ED", "#FFC078"],
+  ];
+  const cards = nodes.map((node, index) => {
+    const x = 70 + index * 215;
+    const [fill, stroke] = colors[index % colors.length];
+    const arrow = index < nodes.length - 1
+      ? `<path d="M${x + 180} 238 C${x + 198} 222, ${x + 222} 222, ${x + 244} 238" stroke="#1664FF" stroke-width="3" stroke-linecap="round"/>
+         <path d="M${x + 234} 226 L${x + 246} 238 L${x + 233} 249" stroke="#1664FF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`
+      : "";
+    return `
+      <g filter="url(#shadow)">
+        <rect x="${x}" y="174" width="170" height="126" rx="12" fill="${fill}" stroke="${stroke}" stroke-width="2"/>
+        <text x="${x + 24}" y="212" fill="#1F2329" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="18" font-weight="900">${escapeSvgText(node.label)}</text>
+        <text x="${x + 24}" y="246" fill="#4E5969" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="14">${escapeSvgText(node.detail.slice(0, 15))}</text>
+        <text x="${x + 24}" y="271" fill="#4E5969" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="14">${escapeSvgText(node.detail.slice(15, 32))}</text>
+      </g>
+      ${arrow}
+    `;
+  }).join("");
+  const risks = visualPlan.risks.slice(0, 2).map((risk, index) =>
+    `<text x="94" y="${407 + index * 30}" fill="#8A5A00" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="15">${index + 1}. ${escapeSvgText(risk)}</text>`
+  ).join("");
+  const svg = `
+    <svg width="960" height="520" viewBox="0 0 960 520" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="960" height="520" rx="18" fill="#F8FAFF"/>
+      <rect x="28" y="28" width="904" height="464" rx="14" fill="#FFFFFF" stroke="#CCD6E6" stroke-width="2" stroke-dasharray="8 8"/>
+      <text x="56" y="70" fill="#1664FF" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="18" font-weight="800">Pencil 草图</text>
+      <text x="56" y="106" fill="#1F2329" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="27" font-weight="900">${escapeSvgText(visualPlan.title)}</text>
+      <text x="56" y="140" fill="#4E5969" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="16">${escapeSvgText(visualPlan.summary.slice(0, 46))}</text>
+      ${cards}
+      <rect x="70" y="360" width="820" height="108" rx="12" fill="#FFF9DB" stroke="#FFD43B" stroke-width="2"/>
+      <text x="94" y="384" fill="#8A5A00" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="17" font-weight="900">审批关注点</text>
+      ${risks}
+      <defs>
+        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#1F2329" flood-opacity="0.12"/>
+        </filter>
+      </defs>
+    </svg>
+  `;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
 function renderReview() {
@@ -270,7 +380,7 @@ function renderReview() {
 
 function renderControls() {
   const canRun = pipeline && pipeline.status === "ready";
-  elements.runButton.disabled = !canRun;
+  elements.runButton.disabled = !canRun || isRunning;
   elements.autoRunButton.classList.add("hidden");
 }
 
@@ -279,17 +389,27 @@ function render() {
   renderStages();
   renderArtifact();
   renderReview();
+  renderRunMonitor();
   renderControls();
 }
 
 async function runUntilReviewOrComplete() {
   if (!pipeline) return;
-  if (runtimeMode === "api") {
-    pipeline = await runUntilReviewFromApi();
-  } else {
-    pipeline = runLocalUntilReviewOrComplete(pipeline);
-  }
+  isRunning = true;
+  runningStageName = getCurrentStage()?.name || "";
   render();
+
+  try {
+    if (runtimeMode === "api") {
+      pipeline = await runUntilReviewFromApi();
+    } else {
+      pipeline = runLocalUntilReviewOrComplete(pipeline);
+    }
+  } finally {
+    isRunning = false;
+    runningStageName = "";
+    render();
+  }
 }
 
 elements.form.addEventListener("submit", async (event) => {

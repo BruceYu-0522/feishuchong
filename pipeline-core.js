@@ -69,7 +69,34 @@
     return review ? review.reason : "";
   }
 
-  function createDesignVisualPlan(rejectReason) {
+  function summarizeRequirement(requirement) {
+    const clean = (requirement || DEFAULT_REQUIREMENT).replace(/[。！？\s]+$/g, "");
+    return clean.length > 18 ? `${clean.slice(0, 18)}...` : clean;
+  }
+
+  function createGenericVisualPlan(requirement, rejectReason) {
+    const topic = summarizeRequirement(requirement);
+    return {
+      title: `${topic}方案蓝图`,
+      summary: rejectReason
+        ? `本版方案已补充处理：${rejectReason}`
+        : `围绕“${topic}”拆成需求理解、影响范围、实现路径和验收兜底四个设计节点。`,
+      nodes: [
+        { id: "intent", label: "需求目标", detail: `明确要完成：${topic}` },
+        { id: "scope", label: "影响范围", detail: "识别需要调整的数据、接口、页面或交互" },
+        { id: "implementation", label: "实现路径", detail: "拆分核心逻辑、UI 状态和边界处理" },
+        { id: "validation", label: "验收兜底", detail: "补充测试、异常状态和人工确认点" },
+      ],
+      edges: [
+        ["intent", "scope"],
+        ["scope", "implementation"],
+        ["implementation", "validation"],
+      ],
+      risks: ["需求边界需要确认", "实现方案需要覆盖异常状态"],
+    };
+  }
+
+  function createPriorityVisualPlan(rejectReason) {
     return {
       title: "优先级筛选方案蓝图",
       summary: rejectReason
@@ -88,6 +115,12 @@
       ],
       risks: ["筛选条件需要和搜索、排序共存", "priority 字段需要默认值"],
     };
+  }
+
+  function createDesignVisualPlan(requirement, rejectReason) {
+    return /优先级|priority|筛选/.test(requirement)
+      ? createPriorityVisualPlan(rejectReason)
+      : createGenericVisualPlan(requirement, rejectReason);
   }
 
   function createArtifact(stage, content, extra = {}) {
@@ -213,7 +246,7 @@
 
     const content = agentGenerators[stage.id](next);
     const visualPlan = stage.id === "design"
-      ? { visualPlan: createDesignVisualPlan(getLatestRejectReason(next, "design")) }
+      ? { visualPlan: createDesignVisualPlan(next.requirement, getLatestRejectReason(next, "design")) }
       : {};
     const pencilSketch = stage.id === "design"
       ? { pencilSketchPath: "docs/pencil/design-blueprint.pen" }

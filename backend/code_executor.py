@@ -223,6 +223,9 @@ def unified_file_diff(relative_path: str, before: str, after: str) -> str:
 
 
 def prepare_workspace(pipeline: Pipeline) -> Path:
+    if pipeline.projectPath:
+        return Path(pipeline.projectPath)
+
     RUNS_DIR.mkdir(exist_ok=True)
     workspace = RUNS_DIR / pipeline.id / "target-app"
     if workspace.exists():

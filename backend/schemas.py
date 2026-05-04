@@ -42,6 +42,7 @@ class ReviewRecord(BaseModel):
 class Pipeline(BaseModel):
     id: str
     requirement: str
+    projectPath: Optional[str] = None
     status: Literal["ready", "waiting_review", "completed"]
     currentStageId: str
     stages: List[Stage]
@@ -51,6 +52,7 @@ class Pipeline(BaseModel):
 
 class CreatePipelineRequest(BaseModel):
     requirement: str
+    projectPath: Optional[str] = None
 
 
 class ReviewRequest(BaseModel):

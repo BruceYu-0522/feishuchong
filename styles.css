@@ -224,6 +224,18 @@ input:focus {
   box-shadow: none;
 }
 
+.project-path-field {
+  display: grid;
+  gap: 6px;
+  max-width: 760px;
+}
+
+.project-path-field span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .primary-button,
 .secondary-button,
 .ghost-button,
@@ -292,6 +304,87 @@ input:focus {
   margin: 4px 0 0;
   color: var(--muted);
   line-height: 1.55;
+}
+
+.run-monitor {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  margin-top: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.run-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: #c9d1df;
+}
+
+.run-monitor span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.run-monitor strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 16px;
+}
+
+.run-monitor p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.run-monitor.is-running {
+  border-color: rgba(22, 100, 255, 0.24);
+  background: #f5f8ff;
+}
+
+.run-monitor.is-running .run-dot {
+  background: var(--blue);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.run-monitor.is-review {
+  border-color: rgba(245, 159, 0, 0.3);
+  background: #fff9ed;
+}
+
+.run-monitor.is-review .run-dot {
+  background: var(--orange);
+}
+
+.run-monitor.is-done {
+  border-color: rgba(18, 184, 134, 0.3);
+  background: #f0fbf7;
+}
+
+.run-monitor.is-done .run-dot {
+  background: var(--green);
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(22, 100, 255, 0.32);
+  }
+  70% {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 8px rgba(22, 100, 255, 0);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(22, 100, 255, 0);
+  }
 }
 
 .flow-board,

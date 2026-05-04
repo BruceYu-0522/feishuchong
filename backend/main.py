@@ -28,7 +28,7 @@ def health() -> dict[str, str]:
 
 @app.post("/pipelines", response_model=Pipeline)
 def create_pipeline_endpoint(request: CreatePipelineRequest) -> Pipeline:
-    return store.save(create_pipeline(request.requirement))
+    return store.save(create_pipeline(request.requirement, request.projectPath))
 
 
 @app.get("/pipelines/{pipeline_id}", response_model=Pipeline)
