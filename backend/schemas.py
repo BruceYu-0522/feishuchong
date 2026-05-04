@@ -24,6 +24,7 @@ class Artifact(BaseModel):
     skill: SkillInfo
     content: str
     createdAt: str
+    visualPlan: Optional[dict] = None
 
 
 class ReviewRecord(BaseModel):

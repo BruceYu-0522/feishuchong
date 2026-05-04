@@ -46,6 +46,31 @@ def current_stage(pipeline: Pipeline) -> Stage:
     return pipeline.stages[stage_index(pipeline.currentStageId)]
 
 
+def design_visual_plan(pipeline: Pipeline) -> dict:
+    reject_reason = ""
+    for record in reversed(pipeline.reviewHistory):
+        if record.stageId == "design" and record.decision == "reject":
+            reject_reason = record.reason
+            break
+
+    return {
+        "title": "优先级筛选方案蓝图",
+        "summary": (
+            f"本版方案已补充处理：{reject_reason}"
+            if reject_reason
+            else "从任务数据、筛选控件、列表渲染和空状态四个点完成优先级筛选。"
+        ),
+        "nodes": [
+            {"id": "data", "label": "Task 数据结构", "detail": "新增 priority: high / medium / low"},
+            {"id": "toolbar", "label": "筛选控件", "detail": "全部 / 高 / 中 / 低 segmented filter"},
+            {"id": "list", "label": "列表过滤", "detail": "按 priorityFilter 过滤任务集合"},
+            {"id": "empty", "label": "空状态", "detail": "无匹配任务时提示并提供重置入口"},
+        ],
+        "edges": [["data", "toolbar"], ["toolbar", "list"], ["list", "empty"]],
+        "risks": ["筛选条件需要和搜索、排序共存", "priority 字段需要默认值"],
+    }
+
+
 def create_pipeline(requirement: str) -> Pipeline:
     clean_requirement = requirement.strip() if requirement and requirement.strip() else DEFAULT_REQUIREMENT
     return Pipeline(
@@ -70,6 +95,7 @@ def run_next_stage(pipeline: Pipeline) -> Pipeline:
         skill=stage.skill,
         content=content,
         createdAt=now_iso(),
+        visualPlan=design_visual_plan(pipeline) if stage.id == "design" else None,
     )
 
     if stage.approvalRequired:

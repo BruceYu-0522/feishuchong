@@ -34,6 +34,11 @@ const elements = {
   artifactStage: document.querySelector("#artifactStage"),
   artifactTime: document.querySelector("#artifactTime"),
   artifactContent: document.querySelector("#artifactContent"),
+  visualPlan: document.querySelector("#visualPlan"),
+  visualPlanTitle: document.querySelector("#visualPlanTitle"),
+  visualPlanSummary: document.querySelector("#visualPlanSummary"),
+  blueprintFlow: document.querySelector("#blueprintFlow"),
+  blueprintRisks: document.querySelector("#blueprintRisks"),
   reviewState: document.querySelector("#reviewState"),
   reviewEmpty: document.querySelector("#reviewEmpty"),
   reviewControls: document.querySelector("#reviewControls"),
@@ -204,6 +209,7 @@ function renderArtifact() {
   if (!artifact) {
     elements.artifactEmpty.classList.remove("hidden");
     elements.artifactCard.classList.add("hidden");
+    elements.visualPlan.classList.add("hidden");
     elements.currentAgent.textContent = pipeline ? "等待运行" : "等待创建";
     return;
   }
@@ -218,6 +224,45 @@ function renderArtifact() {
     second: "2-digit",
   });
   elements.artifactContent.textContent = artifact.content;
+  renderVisualPlan(artifact.visualPlan);
+}
+
+function renderVisualPlan(visualPlan) {
+  if (!visualPlan) {
+    elements.visualPlan.classList.add("hidden");
+    return;
+  }
+
+  elements.visualPlan.classList.remove("hidden");
+  elements.visualPlanTitle.textContent = visualPlan.title;
+  elements.visualPlanSummary.textContent = visualPlan.summary;
+
+  elements.blueprintFlow.replaceChildren(
+    ...visualPlan.nodes.map((node, index) => {
+      const card = document.createElement("article");
+      card.className = "blueprint-node";
+
+      const step = document.createElement("span");
+      step.textContent = `0${index + 1}`;
+
+      const label = document.createElement("strong");
+      label.textContent = node.label;
+
+      const detail = document.createElement("p");
+      detail.textContent = node.detail;
+
+      card.append(step, label, detail);
+      return card;
+    })
+  );
+
+  elements.blueprintRisks.replaceChildren(
+    ...visualPlan.risks.map((risk) => {
+      const item = document.createElement("span");
+      item.textContent = risk;
+      return item;
+    })
+  );
 }
 
 function renderReview() {

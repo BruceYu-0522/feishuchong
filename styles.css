@@ -498,6 +498,108 @@ input:disabled {
   background: #0e1726;
 }
 
+.visual-plan {
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid rgba(22, 100, 255, 0.22);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(22, 100, 255, 0.08), transparent 48%),
+    #ffffff;
+}
+
+.visual-plan-header {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.visual-plan-header span {
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.visual-plan-header strong {
+  font-size: 18px;
+}
+
+.visual-plan-header p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.blueprint-flow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.blueprint-node {
+  position: relative;
+  min-height: 126px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.blueprint-node::after {
+  content: "→";
+  position: absolute;
+  top: 50%;
+  right: -14px;
+  z-index: 1;
+  color: var(--blue);
+  font-weight: 900;
+  transform: translateY(-50%);
+}
+
+.blueprint-node:last-child::after {
+  display: none;
+}
+
+.blueprint-node span {
+  display: inline-flex;
+  margin-bottom: 10px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: #fff;
+  background: var(--blue);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.blueprint-node strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.blueprint-node p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.blueprint-risks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.blueprint-risks span {
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 138, 0, 0.24);
+  border-radius: 999px;
+  color: #9a5200;
+  background: rgba(255, 138, 0, 0.1);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .artifact-meta {
   display: flex;
   justify-content: space-between;
@@ -692,8 +794,16 @@ pre {
   }
 
   .script-steps,
-  .metrics-grid {
+  .metrics-grid,
+  .blueprint-flow {
     grid-template-columns: 1fr;
+  }
+
+  .blueprint-node::after {
+    top: auto;
+    right: 16px;
+    bottom: -18px;
+    transform: rotate(90deg);
   }
 
   .command-dock {

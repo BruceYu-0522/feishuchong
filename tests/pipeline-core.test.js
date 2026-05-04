@@ -26,6 +26,8 @@ assert.equal(waitingForPlanReview.status, "waiting_review");
 assert.equal(waitingForPlanReview.currentStageId, "design");
 assert.equal(waitingForPlanReview.artifacts.requirement.agent, "需求分析 Agent");
 assert.equal(waitingForPlanReview.artifacts.design.agent, "方案设计 Agent");
+assert.equal(waitingForPlanReview.artifacts.design.visualPlan.title, "优先级筛选方案蓝图");
+assert.ok(waitingForPlanReview.artifacts.design.visualPlan.nodes.length >= 4);
 
 const rejected = submitReview(waitingForPlanReview, {
   decision: "reject",
