@@ -55,7 +55,7 @@ cd '$projectRoot'
 `$env:DEVFLOW_LLM_ENABLED='$env:DEVFLOW_LLM_ENABLED'
 `$env:DEVFLOW_LLM_BASE_URL='$env:DEVFLOW_LLM_BASE_URL'
 `$env:DEVFLOW_LLM_API_KEY='$env:DEVFLOW_LLM_API_KEY'
-uvicorn backend.main:app --reload
+$python -m uvicorn backend.main:app --reload
 "@
 
 Write-Host "Starting DevFlow API at http://127.0.0.1:8000" -ForegroundColor Cyan
