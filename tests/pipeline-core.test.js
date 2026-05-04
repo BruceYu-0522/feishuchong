@@ -1,5 +1,10 @@
 const assert = require("node:assert/strict");
-const { createPipeline, runNextStage, submitReview } = require("../pipeline-core");
+const {
+  createPipeline,
+  runNextStage,
+  runUntilReviewOrComplete,
+  submitReview,
+} = require("../pipeline-core");
 
 function runToFirstReview(pipeline) {
   let current = pipeline;
@@ -20,6 +25,12 @@ const initial = createPipeline("给任务管理系统增加按优先级筛选任
 assert.equal(initial.status, "ready");
 assert.equal(initial.currentStageId, "requirement");
 assert.equal(initial.stages.length, 6);
+
+const autoFirstReview = runUntilReviewOrComplete(initial);
+assert.equal(autoFirstReview.status, "waiting_review");
+assert.equal(autoFirstReview.currentStageId, "design");
+assert.ok(autoFirstReview.artifacts.requirement);
+assert.ok(autoFirstReview.artifacts.design);
 
 const waitingForPlanReview = runToFirstReview(initial);
 assert.equal(waitingForPlanReview.status, "waiting_review");

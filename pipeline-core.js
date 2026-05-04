@@ -233,6 +233,14 @@
     return next;
   }
 
+  function runUntilReviewOrComplete(pipeline) {
+    let next = pipeline;
+    while (next.status === "ready") {
+      next = runNextStage(next);
+    }
+    return next;
+  }
+
   function submitReview(pipeline, review) {
     const next = clonePipeline(pipeline);
     const stage = getCurrentStage(next);
@@ -273,6 +281,7 @@
     STAGES,
     createPipeline,
     runNextStage,
+    runUntilReviewOrComplete,
     submitReview,
   };
 });

@@ -1,7 +1,7 @@
 const {
   STAGES,
   createPipeline,
-  runNextStage,
+  runUntilReviewOrComplete: runLocalUntilReviewOrComplete,
   submitReview,
 } = window.DevFlowCore;
 
@@ -85,10 +85,6 @@ async function createPipelineFromApi(requirement) {
   });
 }
 
-async function runNextFromApi() {
-  return requestApi(`/pipelines/${pipeline.id}/run-next`, { method: "POST" });
-}
-
 async function runUntilReviewFromApi() {
   return requestApi(`/pipelines/${pipeline.id}/run-until-review`, { method: "POST" });
 }
@@ -104,8 +100,8 @@ function getNextInstruction() {
   if (!pipeline) {
     return {
       title: "先输入需求并开始",
-      hint: "把你想做的功能写在上方，点击“开始生成研发流程”。系统会先整理需求，再一步步带你确认方案。",
-      runLabel: "继续下一步",
+      hint: "输入需求后点击“开始生成”。系统会自动运行，直到需要你确认方案时才停下来。",
+      runLabel: "自动运行",
     };
   }
 
@@ -121,15 +117,15 @@ function getNextInstruction() {
   if (pipeline.status === "waiting_review") {
     return {
       title: `需要你确认：${stage.name}`,
-      hint: "先看“系统刚刚产出了什么”。认可就点通过；觉得不完整就写一句原因打回，系统会重新生成这一阶段。",
+      hint: "系统已经自动停在筛查点。先看产物，认可就通过；觉得不完整就写一句原因打回重做。",
       runLabel: "等待你确认",
     };
   }
 
   return {
     title: `下一步：${stage.name}`,
-    hint: `点击“继续下一步”，系统会生成“${stage.name}”结果。想快速演示，可以点“自动跑到需要我确认”。`,
-    runLabel: `继续：${stage.name}`,
+    hint: `点击“自动运行”，系统会从“${stage.name}”开始连续执行，直到下一个人工筛查点。`,
+    runLabel: "自动运行",
   };
 }
 
@@ -268,7 +264,7 @@ function renderReview() {
 function renderControls() {
   const canRun = pipeline && pipeline.status === "ready";
   elements.runButton.disabled = !canRun;
-  elements.autoRunButton.disabled = !canRun;
+  elements.autoRunButton.classList.add("hidden");
 }
 
 function render() {
@@ -284,9 +280,7 @@ async function runUntilReviewOrComplete() {
   if (runtimeMode === "api") {
     pipeline = await runUntilReviewFromApi();
   } else {
-    while (pipeline.status === "ready") {
-      pipeline = runNextStage(pipeline);
-    }
+    pipeline = runLocalUntilReviewOrComplete(pipeline);
   }
   render();
 }
@@ -301,17 +295,10 @@ elements.form.addEventListener("submit", async (event) => {
     runtimeMode = "local";
   }
   elements.rejectReason.value = "";
-  render();
+  await runUntilReviewOrComplete();
 });
 
-async function runOneStage() {
-  if (!pipeline || pipeline.status !== "ready") return;
-  pipeline = runtimeMode === "api" ? await runNextFromApi() : runNextStage(pipeline);
-  render();
-}
-
-elements.runButton.addEventListener("click", runOneStage);
-
+elements.runButton.addEventListener("click", runUntilReviewOrComplete);
 elements.autoRunButton.addEventListener("click", runUntilReviewOrComplete);
 
 async function approveCurrentStage() {
@@ -320,7 +307,7 @@ async function approveCurrentStage() {
     ? await submitReviewToApi("approve")
     : submitReview(pipeline, { decision: "approve" });
   elements.rejectReason.value = "";
-  render();
+  await runUntilReviewOrComplete();
 }
 
 elements.approveButton.addEventListener("click", approveCurrentStage);
