@@ -3,6 +3,7 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 
+from backend.code_executor import add_priority_filter_tests, apply_priority_filter_change
 from backend.llm_runner import run_llm_agent
 from backend.mock_agents import run_mock_agent
 from backend.schemas import Artifact, Pipeline, ReviewRecord, ReviewRequest, Stage
@@ -88,12 +89,32 @@ def run_next_stage(pipeline: Pipeline) -> Pipeline:
         return pipeline
 
     stage = current_stage(pipeline)
-    llm_result = run_llm_agent(stage, pipeline)
-    if llm_result:
-        content, model = llm_result
+    changed_files = []
+    workspace_path = None
+
+    if stage.id == "code":
+        code_result = apply_priority_filter_change(pipeline)
+        content = code_result.content
+        model = "local-code-executor"
+        changed_files = code_result.changed_files
+        workspace_path = code_result.workspace_path
+    elif stage.id == "test":
+        test_result = add_priority_filter_tests(pipeline)
+        if test_result:
+            content = test_result.content
+            model = "local-test-generator"
+            changed_files = test_result.changed_files
+            workspace_path = test_result.workspace_path
+        else:
+            content = run_mock_agent(stage.id, pipeline)
+            model = "mock"
     else:
-        content = run_mock_agent(stage.id, pipeline)
-        model = "mock"
+        llm_result = run_llm_agent(stage, pipeline)
+        if llm_result:
+            content, model = llm_result
+        else:
+            content = run_mock_agent(stage.id, pipeline)
+            model = "mock"
 
     pipeline.artifacts[stage.id] = Artifact(
         stageId=stage.id,
@@ -103,6 +124,8 @@ def run_next_stage(pipeline: Pipeline) -> Pipeline:
         content=content,
         createdAt=now_iso(),
         model=model,
+        changedFiles=changed_files,
+        workspacePath=workspace_path,
         visualPlan=design_visual_plan(pipeline) if stage.id == "design" else None,
     )
 

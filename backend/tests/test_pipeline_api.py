@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+from pathlib import Path
 
 from backend import llm_runner
 from backend.main import app
@@ -159,3 +160,44 @@ def test_run_next_falls_back_to_mock_without_api_key(monkeypatch):
     artifact = result["artifacts"]["requirement"]
     assert artifact["model"] == "mock"
     assert "用户故事" in artifact["content"]
+
+
+def test_code_stage_creates_real_target_app_workspace(monkeypatch):
+    store.clear()
+    monkeypatch.delenv("DEVFLOW_LLM_API_KEY", raising=False)
+
+    pipeline = create_pipeline()
+    pipeline_id = pipeline["id"]
+    client.post(f"/pipelines/{pipeline_id}/run-until-review")
+    client.post(f"/pipelines/{pipeline_id}/review", json={"decision": "approve"})
+
+    result = client.post(f"/pipelines/{pipeline_id}/run-next").json()
+    artifact = result["artifacts"]["code"]
+    workspace = Path(artifact["workspacePath"])
+    app_js = workspace / "app.js"
+
+    assert workspace.exists()
+    assert app_js.exists()
+    assert "priorityFilter" in app_js.read_text(encoding="utf-8")
+    assert "target-app/app.js" in artifact["changedFiles"]
+    assert "diff --git" in artifact["content"]
+
+
+def test_test_stage_creates_real_test_file(monkeypatch):
+    store.clear()
+    monkeypatch.delenv("DEVFLOW_LLM_API_KEY", raising=False)
+
+    pipeline = create_pipeline()
+    pipeline_id = pipeline["id"]
+    client.post(f"/pipelines/{pipeline_id}/run-until-review")
+    client.post(f"/pipelines/{pipeline_id}/review", json={"decision": "approve"})
+    client.post(f"/pipelines/{pipeline_id}/run-next")
+
+    result = client.post(f"/pipelines/{pipeline_id}/run-next").json()
+    artifact = result["artifacts"]["test"]
+    workspace = Path(result["artifacts"]["code"]["workspacePath"])
+    test_file = workspace / "tests" / "priority-filter.test.js"
+
+    assert test_file.exists()
+    assert "priorityFilter" in test_file.read_text(encoding="utf-8")
+    assert "target-app/tests/priority-filter.test.js" in artifact["changedFiles"]
