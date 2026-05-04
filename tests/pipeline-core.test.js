@@ -39,6 +39,7 @@ assert.equal(waitingForPlanReview.artifacts.requirement.agent, "需求分析 Age
 assert.equal(waitingForPlanReview.artifacts.design.agent, "方案设计 Agent");
 assert.equal(waitingForPlanReview.artifacts.design.visualPlan.title, "优先级筛选方案蓝图");
 assert.ok(waitingForPlanReview.artifacts.design.visualPlan.nodes.length >= 4);
+assert.equal(waitingForPlanReview.artifacts.design.pencilSketchPath, "docs/pencil/design-blueprint.pen");
 
 const rejected = submitReview(waitingForPlanReview, {
   decision: "reject",

@@ -579,6 +579,19 @@ pre {
   font-weight: 850;
 }
 
+.pencil-link {
+  display: inline-flex;
+  margin-top: 14px;
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.pencil-link:hover {
+  text-decoration: underline;
+}
+
 .review-controls {
   display: grid;
   gap: 12px;

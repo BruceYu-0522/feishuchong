@@ -42,6 +42,7 @@ def test_run_next_reaches_design_review_checkpoint():
     assert design["artifacts"]["design"]["skill"]["id"] == "technical-design"
     assert design["artifacts"]["design"]["visualPlan"]["title"] == "优先级筛选方案蓝图"
     assert len(design["artifacts"]["design"]["visualPlan"]["nodes"]) >= 4
+    assert design["artifacts"]["design"]["pencilSketchPath"].endswith("docs/pencil/design-blueprint.pen")
 
 
 def test_reject_requires_reason_and_regenerates_design_with_reason():

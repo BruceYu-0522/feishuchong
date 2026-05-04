@@ -11,6 +11,7 @@ from backend.skills import get_skill_info
 
 
 DEFAULT_REQUIREMENT = "给任务管理系统增加按优先级筛选任务的功能"
+PENCIL_SKETCH_PATH = "docs/pencil/design-blueprint.pen"
 
 
 STAGE_DEFS = [
@@ -126,6 +127,7 @@ def run_next_stage(pipeline: Pipeline) -> Pipeline:
         model=model,
         changedFiles=changed_files,
         workspacePath=workspace_path,
+        pencilSketchPath=PENCIL_SKETCH_PATH if stage.id == "design" else None,
         visualPlan=design_visual_plan(pipeline) if stage.id == "design" else None,
     )
 

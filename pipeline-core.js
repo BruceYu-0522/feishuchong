@@ -215,7 +215,13 @@
     const visualPlan = stage.id === "design"
       ? { visualPlan: createDesignVisualPlan(getLatestRejectReason(next, "design")) }
       : {};
-    next.artifacts[stage.id] = createArtifact(stage, content, visualPlan);
+    const pencilSketch = stage.id === "design"
+      ? { pencilSketchPath: "docs/pencil/design-blueprint.pen" }
+      : {};
+    next.artifacts[stage.id] = createArtifact(stage, content, {
+      ...visualPlan,
+      ...pencilSketch,
+    });
 
     if (stage.approvalRequired) {
       next.status = "waiting_review";

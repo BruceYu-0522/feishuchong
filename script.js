@@ -32,6 +32,7 @@ const elements = {
   visualPlanSummary: document.querySelector("#visualPlanSummary"),
   blueprintFlow: document.querySelector("#blueprintFlow"),
   blueprintRisks: document.querySelector("#blueprintRisks"),
+  pencilSketchLink: document.querySelector("#pencilSketchLink"),
   reviewPanel: document.querySelector("#review"),
   reviewState: document.querySelector("#reviewState"),
   reviewEmpty: document.querySelector("#reviewEmpty"),
@@ -207,10 +208,10 @@ function renderArtifact() {
     second: "2-digit",
   });
   elements.artifactContent.textContent = artifact.content;
-  renderVisualPlan(artifact.visualPlan);
+  renderVisualPlan(artifact.visualPlan, artifact.pencilSketchPath);
 }
 
-function renderVisualPlan(visualPlan) {
+function renderVisualPlan(visualPlan, pencilSketchPath) {
   if (!visualPlan) {
     elements.visualPlan.classList.add("hidden");
     return;
@@ -246,6 +247,12 @@ function renderVisualPlan(visualPlan) {
       return item;
     })
   );
+
+  elements.pencilSketchLink.classList.toggle("hidden", !pencilSketchPath);
+  if (pencilSketchPath) {
+    elements.pencilSketchLink.href = pencilSketchPath;
+    elements.pencilSketchLink.textContent = `打开 Pencil 草图：${pencilSketchPath}`;
+  }
 }
 
 function renderReview() {

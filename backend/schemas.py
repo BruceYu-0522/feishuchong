@@ -27,6 +27,7 @@ class Artifact(BaseModel):
     model: str = "mock"
     changedFiles: List[str] = Field(default_factory=list)
     workspacePath: Optional[str] = None
+    pencilSketchPath: Optional[str] = None
     visualPlan: Optional[dict] = None
 
 
