@@ -16,15 +16,8 @@ const elements = {
   runButton: document.querySelector("#runButton"),
   autoRunButton: document.querySelector("#autoRunButton"),
   resetButton: document.querySelector("#resetButton"),
-  dockStatus: document.querySelector("#dockStatus"),
   nextStepTitle: document.querySelector("#nextStepTitle"),
   nextStepHint: document.querySelector("#nextStepHint"),
-  dockNextTitle: document.querySelector("#dockNextTitle"),
-  dockRunButton: document.querySelector("#dockRunButton"),
-  dockAutoRunButton: document.querySelector("#dockAutoRunButton"),
-  dockRejectReason: document.querySelector("#dockRejectReason"),
-  dockApproveButton: document.querySelector("#dockApproveButton"),
-  dockRejectButton: document.querySelector("#dockRejectButton"),
   pipelineStatus: document.querySelector("#pipelineStatus"),
   stageCount: document.querySelector("#stageCount"),
   stageList: document.querySelector("#stageList"),
@@ -39,14 +32,13 @@ const elements = {
   visualPlanSummary: document.querySelector("#visualPlanSummary"),
   blueprintFlow: document.querySelector("#blueprintFlow"),
   blueprintRisks: document.querySelector("#blueprintRisks"),
+  reviewPanel: document.querySelector("#review"),
   reviewState: document.querySelector("#reviewState"),
   reviewEmpty: document.querySelector("#reviewEmpty"),
   reviewControls: document.querySelector("#reviewControls"),
   rejectReason: document.querySelector("#rejectReason"),
   approveButton: document.querySelector("#approveButton"),
   rejectButton: document.querySelector("#rejectButton"),
-  artifactMetric: document.querySelector("#artifactMetric"),
-  reviewMetric: document.querySelector("#reviewMetric"),
 };
 
 function getCompletedStageIds() {
@@ -111,16 +103,16 @@ async function submitReviewToApi(decision, reason = "") {
 function getNextInstruction() {
   if (!pipeline) {
     return {
-      title: "先创建 Pipeline",
-      hint: "确认 Demo 需求后，点击“创建 Pipeline”。创建完成后，页面会告诉你下一步该执行哪个阶段。",
-      runLabel: "执行当前阶段",
+      title: "先输入需求并开始",
+      hint: "把你想做的功能写在上方，点击“开始生成研发流程”。系统会先整理需求，再一步步带你确认方案。",
+      runLabel: "继续下一步",
     };
   }
 
   if (pipeline.status === "completed") {
     return {
       title: "演示完成",
-      hint: "你已经跑完从需求输入到交付总结的完整闭环。可以重置后再演示一次。",
+      hint: "已经从需求跑到了交付总结。你可以查看最后产物，或者重置后换一个需求再试。",
       runLabel: "已完成",
     };
   }
@@ -128,16 +120,16 @@ function getNextInstruction() {
   const stage = getCurrentStage();
   if (pipeline.status === "waiting_review") {
     return {
-      title: `审批：${stage.name}`,
-      hint: "先看右侧产物。如果认可，点 Approve 继续；如果想展示回退能力，填写 Reject 原因后点 Reject。",
-      runLabel: "等待审批",
+      title: `需要你确认：${stage.name}`,
+      hint: "先看“系统刚刚产出了什么”。认可就点通过；觉得不完整就写一句原因打回，系统会重新生成这一阶段。",
+      runLabel: "等待你确认",
     };
   }
 
   return {
-    title: `执行：${stage.name}`,
-    hint: `点击“执行当前阶段”，让 ${stage.agent} 生成这一阶段的产物。想省步骤时，可以点“自动演示到下个决策点”。`,
-    runLabel: `执行：${stage.name}`,
+    title: `下一步：${stage.name}`,
+    hint: `点击“继续下一步”，系统会生成“${stage.name}”结果。想快速演示，可以点“自动跑到需要我确认”。`,
+    runLabel: `继续：${stage.name}`,
   };
 }
 
@@ -146,32 +138,26 @@ function setStatusBadge() {
   elements.pipelineStatus.classList.remove("is-running", "is-review", "is-done");
   elements.nextStepTitle.textContent = instruction.title;
   elements.nextStepHint.textContent = instruction.hint;
-  elements.dockNextTitle.textContent = instruction.title;
   elements.runButton.textContent = instruction.runLabel;
-  elements.dockRunButton.textContent = instruction.runLabel;
 
   if (!pipeline) {
-    elements.pipelineStatus.textContent = "未创建";
-    elements.dockStatus.textContent = runtimeMode === "api" ? "API 模式" : "未创建";
+    elements.pipelineStatus.textContent = "未开始";
     return;
   }
 
   if (pipeline.status === "completed") {
     elements.pipelineStatus.textContent = "已完成";
-    elements.dockStatus.textContent = runtimeMode === "api" ? "API 已完成" : "本地已完成";
     elements.pipelineStatus.classList.add("is-done");
     return;
   }
 
   if (pipeline.status === "waiting_review") {
-    elements.pipelineStatus.textContent = "等待人工审批";
-    elements.dockStatus.textContent = runtimeMode === "api" ? "API 等待审批" : "本地等待审批";
+    elements.pipelineStatus.textContent = "等待你确认";
     elements.pipelineStatus.classList.add("is-review");
     return;
   }
 
   elements.pipelineStatus.textContent = "可继续运行";
-  elements.dockStatus.textContent = runtimeMode === "api" ? "API 可运行" : "本地可运行";
   elements.pipelineStatus.classList.add("is-running");
 }
 
@@ -181,19 +167,20 @@ function renderStages() {
   elements.stageList.innerHTML = STAGES.map((stage, index) => {
     const isComplete = completedIds.has(stage.id);
     const isCurrent = pipeline && pipeline.currentStageId === stage.id && pipeline.status !== "completed";
-    const state = isComplete ? "已生成" : isCurrent ? "当前阶段" : "待执行";
+    const state = isComplete ? "已完成" : isCurrent ? "当前" : "待处理";
     const classes = [
       "stage-item",
       isComplete ? "is-complete" : "",
       isCurrent ? "is-current" : "",
     ].filter(Boolean).join(" ");
+    const approvalLabel = stage.approvalRequired ? "需要你确认" : "自动处理";
 
     return `
       <li class="${classes}">
         <span class="stage-index">${index + 1}</span>
         <span>
           <strong>${stage.name}</strong>
-          <small>${stage.agent}${stage.approvalRequired ? " · 人工卡点" : ""}</small>
+          <small>${approvalLabel} · ${stage.agent}</small>
         </span>
         <span class="stage-state">${state}</span>
       </li>
@@ -210,13 +197,13 @@ function renderArtifact() {
     elements.artifactEmpty.classList.remove("hidden");
     elements.artifactCard.classList.add("hidden");
     elements.visualPlan.classList.add("hidden");
-    elements.currentAgent.textContent = pipeline ? "等待运行" : "等待创建";
+    elements.currentAgent.textContent = pipeline ? "等待生成" : "等待开始";
     return;
   }
 
   elements.artifactEmpty.classList.add("hidden");
   elements.artifactCard.classList.remove("hidden");
-  elements.currentAgent.textContent = artifact.agent;
+  elements.currentAgent.textContent = artifact.model ? `${artifact.agent} · ${artifact.model}` : artifact.agent;
   elements.artifactStage.textContent = artifact.stageName;
   elements.artifactTime.textContent = new Date(artifact.createdAt).toLocaleTimeString("zh-CN", {
     hour: "2-digit",
@@ -269,30 +256,19 @@ function renderReview() {
   const stage = getCurrentStage();
   const isWaitingReview = pipeline && pipeline.status === "waiting_review";
 
-  elements.reviewState.textContent = isWaitingReview ? `${stage.name}待审批` : "暂无卡点";
+  elements.reviewState.textContent = isWaitingReview ? `${stage.name}待确认` : "暂时不用确认";
+  elements.reviewPanel.classList.toggle("hidden", !isWaitingReview);
   elements.reviewEmpty.classList.toggle("hidden", isWaitingReview);
   elements.reviewControls.classList.toggle("hidden", !isWaitingReview);
   elements.rejectReason.disabled = !isWaitingReview;
   elements.approveButton.disabled = !isWaitingReview;
   elements.rejectButton.disabled = !isWaitingReview;
-  elements.dockRejectReason.disabled = !isWaitingReview;
-  elements.dockApproveButton.disabled = !isWaitingReview;
-  elements.dockRejectButton.disabled = !isWaitingReview;
-}
-
-function renderMetrics() {
-  const artifactCount = pipeline ? Object.keys(pipeline.artifacts).length : 0;
-  const reviewCount = pipeline ? pipeline.reviewHistory.length : 0;
-  elements.artifactMetric.textContent = artifactCount;
-  elements.reviewMetric.textContent = reviewCount;
 }
 
 function renderControls() {
   const canRun = pipeline && pipeline.status === "ready";
   elements.runButton.disabled = !canRun;
   elements.autoRunButton.disabled = !canRun;
-  elements.dockRunButton.disabled = !canRun;
-  elements.dockAutoRunButton.disabled = !canRun;
 }
 
 function render() {
@@ -300,7 +276,6 @@ function render() {
   renderStages();
   renderArtifact();
   renderReview();
-  renderMetrics();
   renderControls();
 }
 
@@ -326,7 +301,6 @@ elements.form.addEventListener("submit", async (event) => {
     runtimeMode = "local";
   }
   elements.rejectReason.value = "";
-  elements.dockRejectReason.value = "";
   render();
 });
 
@@ -337,10 +311,8 @@ async function runOneStage() {
 }
 
 elements.runButton.addEventListener("click", runOneStage);
-elements.dockRunButton.addEventListener("click", runOneStage);
 
 elements.autoRunButton.addEventListener("click", runUntilReviewOrComplete);
-elements.dockAutoRunButton.addEventListener("click", runUntilReviewOrComplete);
 
 async function approveCurrentStage() {
   if (!pipeline) return;
@@ -348,12 +320,10 @@ async function approveCurrentStage() {
     ? await submitReviewToApi("approve")
     : submitReview(pipeline, { decision: "approve" });
   elements.rejectReason.value = "";
-  elements.dockRejectReason.value = "";
   render();
 }
 
 elements.approveButton.addEventListener("click", approveCurrentStage);
-elements.dockApproveButton.addEventListener("click", approveCurrentStage);
 
 async function rejectCurrentStage(reasonElement) {
   if (!pipeline) return;
@@ -365,7 +335,6 @@ async function rejectCurrentStage(reasonElement) {
           reason: reasonElement.value,
         });
     elements.rejectReason.value = "";
-    elements.dockRejectReason.value = "";
     render();
   } catch (error) {
     reasonElement.focus();
@@ -374,30 +343,13 @@ async function rejectCurrentStage(reasonElement) {
 }
 
 elements.rejectButton.addEventListener("click", () => {
-  const reason = elements.rejectReason.value || elements.dockRejectReason.value;
-  elements.rejectReason.value = reason;
   rejectCurrentStage(elements.rejectReason);
-});
-
-elements.dockRejectButton.addEventListener("click", () => {
-  const reason = elements.dockRejectReason.value || elements.rejectReason.value;
-  elements.dockRejectReason.value = reason;
-  rejectCurrentStage(elements.dockRejectReason);
-});
-
-elements.rejectReason.addEventListener("input", () => {
-  elements.dockRejectReason.value = elements.rejectReason.value;
-});
-
-elements.dockRejectReason.addEventListener("input", () => {
-  elements.rejectReason.value = elements.dockRejectReason.value;
 });
 
 elements.resetButton.addEventListener("click", () => {
   pipeline = null;
   runtimeMode = "local";
   elements.rejectReason.value = "";
-  elements.dockRejectReason.value = "";
   render();
 });
 

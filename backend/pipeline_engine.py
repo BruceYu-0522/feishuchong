@@ -3,6 +3,7 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 
+from backend.llm_runner import run_llm_agent
 from backend.mock_agents import run_mock_agent
 from backend.schemas import Artifact, Pipeline, ReviewRecord, ReviewRequest, Stage
 from backend.skills import get_skill_info
@@ -87,7 +88,13 @@ def run_next_stage(pipeline: Pipeline) -> Pipeline:
         return pipeline
 
     stage = current_stage(pipeline)
-    content = run_mock_agent(stage.id, pipeline)
+    llm_result = run_llm_agent(stage, pipeline)
+    if llm_result:
+        content, model = llm_result
+    else:
+        content = run_mock_agent(stage.id, pipeline)
+        model = "mock"
+
     pipeline.artifacts[stage.id] = Artifact(
         stageId=stage.id,
         stageName=stage.name,
@@ -95,6 +102,7 @@ def run_next_stage(pipeline: Pipeline) -> Pipeline:
         skill=stage.skill,
         content=content,
         createdAt=now_iso(),
+        model=model,
         visualPlan=design_visual_plan(pipeline) if stage.id == "design" else None,
     )
 

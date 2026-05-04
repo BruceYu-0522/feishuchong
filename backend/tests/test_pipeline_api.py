@@ -1,6 +1,8 @@
 from fastapi.testclient import TestClient
 
+from backend import llm_runner
 from backend.main import app
+from backend.storage import store
 
 
 client = TestClient(app)
@@ -102,3 +104,58 @@ def test_get_pipeline_returns_current_state():
     assert fetched["id"] == pipeline_id
     assert fetched["currentStageId"] == "design"
     assert "requirement" in fetched["artifacts"]
+
+
+def test_model_router_uses_mixed_latest_models():
+    assert llm_runner.MODEL_ROUTER == {
+        "requirement": "deepseek-v4-flash",
+        "design": "gpt-5.4",
+        "code": "claude-sonnet-4-5-20250929",
+        "test": "deepseek-v4-pro",
+        "review": "claude-opus-4-5-20251101",
+        "delivery": "deepseek-v4-flash",
+    }
+
+
+def test_run_next_uses_llm_when_enabled(monkeypatch):
+    store.clear()
+    monkeypatch.setenv("DEVFLOW_LLM_ENABLED", "true")
+    monkeypatch.setenv("DEVFLOW_LLM_API_KEY", "test-key")
+    monkeypatch.setenv("DEVFLOW_LLM_BASE_URL", "https://api.lingyaai.cn")
+
+    calls = []
+
+    def fake_post(payload):
+        calls.append(payload)
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": "真实模型输出：需求分析结果",
+                    }
+                }
+            ]
+        }
+
+    monkeypatch.setattr(llm_runner, "post_chat_completion", fake_post)
+
+    pipeline = create_pipeline()
+    result = client.post(f"/pipelines/{pipeline['id']}/run-next").json()
+
+    artifact = result["artifacts"]["requirement"]
+    assert artifact["content"] == "真实模型输出：需求分析结果"
+    assert artifact["model"] == "deepseek-v4-flash"
+    assert calls[0]["model"] == "deepseek-v4-flash"
+
+
+def test_run_next_falls_back_to_mock_without_api_key(monkeypatch):
+    store.clear()
+    monkeypatch.setenv("DEVFLOW_LLM_ENABLED", "true")
+    monkeypatch.delenv("DEVFLOW_LLM_API_KEY", raising=False)
+
+    pipeline = create_pipeline()
+    result = client.post(f"/pipelines/{pipeline['id']}/run-next").json()
+
+    artifact = result["artifacts"]["requirement"]
+    assert artifact["model"] == "mock"
+    assert "用户故事" in artifact["content"]

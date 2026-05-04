@@ -24,6 +24,7 @@ class Artifact(BaseModel):
     skill: SkillInfo
     content: str
     createdAt: str
+    model: str = "mock"
     visualPlan: Optional[dict] = None
 
 
