@@ -41,6 +41,6 @@ assert.ok(map.nodes.length >= 5);
 assert.ok(map.nodes.some((node) => node.label === "需求目标" && node.detail.includes("冒泡排序")));
 assert.ok(map.nodes.some((node) => node.label === "核心功能" && node.items.includes("柱状图展示数组")));
 assert.ok(map.nodes.some((node) => node.label === "验收标准" && node.items.length === 2));
-assert.ok(map.nodes.some((node) => node.label === "待确认" && node.items.includes("是否只做冒泡排序？")));
+assert.ok(map.nodes.some((node) => node.label === "待澄清" && node.items.includes("是否只做冒泡排序？")));
 
 console.log("artifact-renderer tests passed");

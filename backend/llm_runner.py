@@ -402,7 +402,7 @@ async def stream_llm_agent(stage: Stage, pipeline: Pipeline) -> AsyncGenerator[s
                         content = delta.get("content") or ""
                         if content:
                             full_content += content
-                            yield f"data: {content}\n\n"
+                            yield f"event: chunk\ndata: {content}\n\n"
                     except (json.JSONDecodeError, KeyError, IndexError):
                         continue
 
@@ -417,7 +417,6 @@ async def stream_llm_agent(stage: Stage, pipeline: Pipeline) -> AsyncGenerator[s
     # Store the full content for later retrieval
     yield f"event: system\ndata: 已接收 {len(full_content)} 个字符，正在处理产物…\n\n"
     yield f"event: result\ndata: {json.dumps({'content': full_content, 'model': payload['model']})}\n\n"
-    yield "event: done\ndata: \n\n"
 
 
 # ── PRD Mermaid Diagram Generation ──

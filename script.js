@@ -52,6 +52,7 @@ var elements = {
   artifactContent: document.querySelector("#artifactContent"),
   prdMap: document.querySelector("#prdMap"),
   prdMapTitle: document.querySelector("#prdMapTitle"),
+  prdMapSummary: document.querySelector("#prdMapSummary"),
   prdMapFlow: document.querySelector("#prdMapFlow"),
   visualPlan: document.querySelector("#visualPlan"),
   visualPlanTitle: document.querySelector("#visualPlanTitle"),
@@ -252,42 +253,49 @@ function connectLiveOutput(pipelineId) {
   clearLiveOutput();
   showLiveOutput();
 
-  try {
-    liveOutputEventSource = new EventSource(
-      "http://127.0.0.1:8001/pipelines/" + pipelineId + "/stream-run"
-    );
+  return new Promise(function (resolve, reject) {
+    try {
+      liveOutputEventSource = new EventSource(
+        "http://127.0.0.1:8001/pipelines/" + pipelineId + "/stream-run"
+      );
 
-    liveOutputEventSource.addEventListener("chunk", function (event) {
-      appendLiveChunk(event.data);
-    });
+      liveOutputEventSource.addEventListener("chunk", function (event) {
+        appendLiveChunk(event.data);
+      });
 
-    liveOutputEventSource.addEventListener("system", function (event) {
-      appendSystemMessage(event.data);
-    });
+      liveOutputEventSource.addEventListener("system", function (event) {
+        appendSystemMessage(event.data);
+      });
 
-    liveOutputEventSource.addEventListener("stage", function (event) {
-      setLiveOutputStage(event.data);
-    });
+      liveOutputEventSource.addEventListener("stage", function (event) {
+        setLiveOutputStage(event.data);
+      });
 
-    liveOutputEventSource.addEventListener("error", function (event) {
-      if (event.data) {
-        appendErrorMessage(event.data);
-      }
-    });
+      liveOutputEventSource.addEventListener("error", function (event) {
+        if (event.data) {
+          appendErrorMessage(event.data);
+          reject(new Error(event.data));
+        }
+      });
 
-    liveOutputEventSource.addEventListener("done", function () {
-      appendSystemMessage("当前阶段执行完毕");
-      disconnectLiveOutput();
-    });
+      liveOutputEventSource.addEventListener("done", function () {
+        appendSystemMessage("阶段执行完成");
+        disconnectLiveOutput();
+        resolve();
+      });
 
-    liveOutputEventSource.onerror = function () {
-      // SSE connection failed or ended — that's OK, we poll afterward
-      disconnectLiveOutput();
-    };
-  } catch (_e) {
-    // SSE not available, use polling fallback
-    liveOutputEventSource = null;
-  }
+      liveOutputEventSource.onerror = function () {
+        // SSE connection closed by server after completion
+        if (liveOutputEventSource && liveOutputEventSource.readyState === EventSource.CLOSED) {
+          resolve();
+        }
+        disconnectLiveOutput();
+      };
+    } catch (_e) {
+      liveOutputEventSource = null;
+      reject(_e);
+    }
+  });
 }
 
 // ── Render functions ──
@@ -391,30 +399,33 @@ function renderArtifact() {
     second: "2-digit",
   });
   elements.artifactContent.innerHTML = artifactRenderer.renderMarkdown(artifact.content);
-  renderPrdMap(artifact);
+  renderPrdMap();
   renderPrototype(artifact);
-  renderMermaidDiagram(artifact);
+  renderMermaidDiagram();
   renderVisualPlan(artifact.visualPlan);
 }
 
-function renderPrdMap(artifact) {
-  if (!artifact || artifact.stageId !== "requirement") {
+function renderPrdMap() {
+  var reqArtifact = getArtifact("requirement");
+  if (!reqArtifact) {
     elements.prdMap.classList.add("hidden");
     return;
   }
 
-  var prdMap = artifactRenderer.buildPrdMap(artifact.content);
+  var prdMap = artifactRenderer.buildPrdMap(reqArtifact.content);
   elements.prdMap.classList.remove("hidden");
   elements.prdMapTitle.textContent = prdMap.title;
+  elements.prdMapSummary.textContent = prdMap.summary || "";
   elements.prdMapFlow.innerHTML = artifactRenderer.renderPrdMap(prdMap);
 }
 
-function renderMermaidDiagram(artifact) {
+function renderMermaidDiagram() {
   // Remove any existing mermaid preview
   var existing = document.querySelector("#mermaidPreview");
   if (existing) existing.remove();
 
-  if (!artifact || artifact.stageId !== "requirement" || !artifact.mermaidCode) return;
+  var reqArtifact = getArtifact("requirement");
+  if (!reqArtifact || !reqArtifact.mermaidCode) return;
 
   var container = document.createElement("div");
   container.className = "mermaid-preview";
@@ -426,26 +437,26 @@ function renderMermaidDiagram(artifact) {
   container.appendChild(header);
 
   // Try to render Mermaid
-  if (artifact.mermaidSvg) {
+  if (reqArtifact.mermaidSvg) {
     var img = document.createElement("img");
     img.className = "mermaid-svg";
-    img.src = artifact.mermaidSvg;
+    img.src = reqArtifact.mermaidSvg;
     img.alt = "PRD 思维导图";
     container.appendChild(img);
-  } else if (artifact.mermaidCode) {
+  } else if (reqArtifact.mermaidCode) {
     // Show raw mermaid code
     var pre = document.createElement("pre");
     pre.className = "mermaid-source";
     pre.style.display = "block";
-    pre.textContent = artifact.mermaidCode;
+    pre.textContent = reqArtifact.mermaidCode;
     container.appendChild(pre);
   }
 
   // Fallback image
-  if (artifact.prdImageUrl) {
+  if (reqArtifact.prdImageUrl) {
     var fallbackImg = document.createElement("img");
     fallbackImg.className = "mermaid-fallback-img";
-    fallbackImg.src = artifact.prdImageUrl;
+    fallbackImg.src = reqArtifact.prdImageUrl;
     fallbackImg.alt = "PRD 主要内容图示";
     container.appendChild(fallbackImg);
   }
@@ -770,15 +781,17 @@ async function runUntilReviewOrComplete() {
   runningStageName = stage ? stage.name : "";
   render();
 
-  // Try SSE streaming first
-  connectLiveOutput(pipeline.id);
-
   try {
-    pipeline = await client.runUntilReview(pipeline.id);
-    appendSystemMessage("阶段执行完成，等待你的确认。");
+    // Execute pipeline via SSE streaming — this runs AND streams output
+    await connectLiveOutput(pipeline.id);
+
+    // After SSE stream completes, fetch the final pipeline state
+    pipeline = await client.getPipeline(pipeline.id);
   } catch (error) {
-    runErrorMessage = error.message;
-    appendErrorMessage(error.message);
+    runErrorMessage = error.message || "执行失败";
+    if (error.message) {
+      appendErrorMessage(error.message);
+    }
   } finally {
     isRunning = false;
     abortController = null;
