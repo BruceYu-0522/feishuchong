@@ -1,4 +1,4 @@
-var STAGES = window.DevFlowCore.STAGES;
+﻿var STAGES = window.DevFlowCore.STAGES;
 var client = window.DevFlowCore.createClient("http://127.0.0.1:8001");
 var artifactRenderer = window.DevFlowArtifactRenderer;
 var clarificationFlow = window.DevFlowClarificationFlow;
@@ -10,6 +10,7 @@ var runErrorMessage = "";
 var abortController = null;
 var pendingRequirement = "";
 var pendingProjectPath = "";
+var lastWheelRotation = 0;
 
 var elements = {
   form: document.querySelector("#requestForm"),
@@ -35,7 +36,8 @@ var elements = {
   mrDraft: document.querySelector("#mrDraft"),
   pipelineStatus: document.querySelector("#pipelineStatus"),
   stageCount: document.querySelector("#stageCount"),
-  stageList: document.querySelector("#stageList"),
+  stageWheel: document.querySelector("#stageWheel"),
+  stageWheelViewport: document.querySelector("#stageWheelViewport"),
   currentAgent: document.querySelector("#currentAgent"),
   artifactEmpty: document.querySelector("#artifactEmpty"),
   artifactCard: document.querySelector("#artifactCard"),
@@ -213,31 +215,54 @@ function renderRunMonitor() {
 
 function renderStages() {
   var completedIds = getCompletedStageIds();
-  var wheelItems = window.DevFlowCore.createStageWheelItems(
+  var wheelData = window.DevFlowCore.createStageWheelItems(
     STAGES,
     pipeline ? pipeline.currentStageId : STAGES[0].id,
     completedIds
   );
 
-  elements.stageList.innerHTML = wheelItems.map(function (stage, index) {
-    var isCurrent = stage.state === "current" && pipeline && pipeline.status !== "completed";
-    var state = stage.state === "complete" ? "已完成" : isCurrent ? "当前" : "待处理";
-    var classes = ["stage-item", "stage-wheel-item", "is-" + stage.state];
-    if (isCurrent) classes.push("is-current");
-    var approvalLabel = stage.approvalRequired ? "需要你确认" : "AI 自动处理";
-    var style = "--wheel-x:" + stage.x + "%;--wheel-y:" + stage.y + "%;--wheel-angle:" + stage.angle + "deg;--wheel-offset:" + stage.offset + ";";
+  var items = wheelData.items;
+  var wheelRotation = wheelData.wheelRotation;
+  var radius = wheelData.radius;
+  var stateLabels = { complete: "已完成", current: "当前", pending: "待处理" };
+
+  // Animate only if rotation changed
+  if (wheelRotation !== lastWheelRotation) {
+    elements.stageWheel.classList.add("animating");
+    lastWheelRotation = wheelRotation;
+  }
+
+  elements.stageWheel.style.setProperty("--wheel-rotation", wheelRotation + "deg");
+  elements.stageWheel.style.transform = "rotate(" + wheelRotation + "deg)";
+
+  elements.stageWheel.innerHTML = items.map(function (item, index) {
+    var itemAngle = item.angle;
+    var counterAngle = -(itemAngle + wheelRotation);
+    var stateLabel = stateLabels[item.state] || "待处理";
+    var stateClass = "is-" + item.state;
+    if (item.state === "current" && pipeline && pipeline.status !== "completed") {
+      stateClass += " is-current";
+    }
+
+    var itemStyle = "--item-angle:" + itemAngle + "deg; transform: translateY(" + (-radius) + "px) rotate(" + itemAngle + "deg);";
+    var innerStyle = "transform: rotate(" + counterAngle + "deg);";
 
     return (
-      '<li class="' + classes.join(" ") + '" style="' + style + '">' +
-        '<span class="stage-index">' + (index + 1) + "</span>" +
-        '<span class="stage-copy">' +
-          "<strong>" + stage.name + "</strong>" +
-          "<small>" + approvalLabel + " · " + stage.agent + "</small>" +
-        "</span>" +
-        '<span class="stage-state">' + state + "</span>" +
-      "</li>"
+      '<div class="stage-wheel-item" style="' + itemStyle + '">' +
+        '<div class="stage-wheel-item-inner ' + stateClass + '" style="' + innerStyle + '">' +
+          '<span class="item-index">' + (index + 1) + "</span>" +
+          '<span class="item-name">' + item.name + "</span>" +
+          '<span class="item-agent">' + item.agent + "</span>" +
+          '<span class="item-state">' + stateLabel + "</span>" +
+        "</div>" +
+      "</div>"
     );
   }).join("");
+
+  // Remove animation class after transition completes
+  setTimeout(function () {
+    elements.stageWheel.classList.remove("animating");
+  }, 750);
 
   elements.stageCount.textContent = completedIds.size + " / " + STAGES.length;
 }
@@ -657,6 +682,7 @@ elements.resetButton.addEventListener("click", function () {
   runErrorMessage = "";
   pendingRequirement = "";
   pendingProjectPath = "";
+  lastWheelRotation = 0;
   closeClarificationModal();
   if (abortController) {
     abortController.abort();

@@ -1,5 +1,5 @@
-const assert = require("node:assert/strict");
-const { STAGES, createClient, createStageWheelItems } = require("../pipeline-core");
+var assert = require("node:assert/strict");
+var { STAGES, createClient, createStageWheelItems } = require("../pipeline-core");
 
 // STAGES definition must be valid
 assert.equal(STAGES.length, 6, "should have 6 stages");
@@ -41,8 +41,6 @@ assert.equal(typeof client.submitReview, "function");
 
 // createClient should strip trailing slashes from base URL
 var trimmedClient = createClient("http://example.com/api/");
-// Internal request would use "http://example.com/api" + path — we can't inspect private vars
-// but we verify the function exists and works without throwing
 assert.ok(trimmedClient);
 
 // Export nothing extra beyond the documented API
@@ -52,19 +50,50 @@ assert.ok(exported.createClient);
 assert.ok(exported.createStageWheelItems);
 assert.equal(Object.keys(exported).length, 3, "should only export the documented core API");
 
-// Stage wheel should place all stages on an upper semicircle and mark state
-var wheelItems = createStageWheelItems(STAGES, "code", new Set(["requirement", "design"]));
-assert.equal(wheelItems.length, STAGES.length);
-assert.equal(wheelItems[0].angle, 180);
-assert.equal(wheelItems[wheelItems.length - 1].angle, 0);
-assert.ok(wheelItems.every(function (item) { return item.x >= 0 && item.x <= 100; }));
-assert.ok(wheelItems.every(function (item) { return item.y >= 0 && item.y <= 100; }));
-assert.equal(wheelItems[0].state, "complete");
-assert.equal(wheelItems[1].state, "complete");
-assert.equal(wheelItems[2].state, "current");
-assert.equal(wheelItems[3].state, "pending");
-assert.equal(wheelItems[2].offset, 0);
-assert.equal(wheelItems[1].offset, -1);
-assert.equal(wheelItems[3].offset, 1);
+// Stage wheel: returns { items, wheelRotation, radius, activeIndex }
+var wheelData = createStageWheelItems(STAGES, "code", new Set(["requirement", "design"]));
+assert.equal(typeof wheelData, "object", "should return an object");
+assert.ok(Array.isArray(wheelData.items), "items should be an array");
+assert.equal(wheelData.items.length, STAGES.length, "should have items for all stages");
+assert.equal(typeof wheelData.wheelRotation, "number");
+assert.equal(typeof wheelData.radius, "number");
+assert.equal(typeof wheelData.activeIndex, "number");
+
+// Items positioned on full circle (0-360), not semicircle
+assert.equal(wheelData.items[0].angle, 0, "stage 0 at 0 degrees (top of wheel)");
+assert.equal(wheelData.items[wheelData.items.length - 1].angle, 300, "last stage at 300 degrees");
+
+// Wheel rotation: activeIndex 2 (code is stage index 2) → -120 degrees
+assert.equal(wheelData.activeIndex, 2, "code is stage index 2");
+assert.equal(wheelData.wheelRotation, -120, "wheel rotated -120 to bring code to top");
+
+// State assignments
+assert.equal(wheelData.items[0].state, "complete", "requirement completed");
+assert.equal(wheelData.items[1].state, "complete", "design completed");
+assert.equal(wheelData.items[2].state, "current", "code is current");
+assert.equal(wheelData.items[3].state, "pending");
+assert.equal(wheelData.items[4].state, "pending");
+assert.equal(wheelData.items[5].state, "pending");
+
+// Each item has expected shape
+wheelData.items.forEach(function (item, index) {
+  assert.ok(item.id, "item " + index + " missing id");
+  assert.ok(item.name, "item " + index + " missing name");
+  assert.ok(item.agent, "item " + index + " missing agent");
+  assert.equal(typeof item.approvalRequired, "boolean");
+  assert.equal(typeof item.angle, "number");
+  assert.ok(item.angle >= 0 && item.angle < 360, "angle should be in [0, 360)");
+  assert.ok(["complete", "current", "pending"].indexOf(item.state) !== -1, "item " + index + " state should be complete/current/pending");
+});
+
+// Test with first stage active
+var firstWheel = createStageWheelItems(STAGES, "requirement", new Set());
+assert.equal(firstWheel.wheelRotation, 0, "no rotation when first stage is active");
+assert.equal(firstWheel.activeIndex, 0);
+
+// Test with last stage active
+var lastWheel = createStageWheelItems(STAGES, "delivery", new Set(["requirement", "design", "code", "test", "review"]));
+assert.equal(lastWheel.activeIndex, 5);
+assert.equal(lastWheel.wheelRotation, -300);
 
 console.log("pipeline-core tests passed");

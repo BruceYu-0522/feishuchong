@@ -1,4 +1,4 @@
-(function (root, factory) {
+﻿(function (root, factory) {
   if (typeof module === "object" && module.exports) {
     module.exports = factory();
   } else {
@@ -7,7 +7,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const STAGES = [
+  var STAGES = [
     { id: "requirement", name: "需求分析", agent: "需求分析 Agent", approvalRequired: true },
     { id: "design", name: "方案设计", agent: "方案设计 Agent", approvalRequired: true },
     { id: "code", name: "代码生成", agent: "代码生成 Agent", approvalRequired: true },
@@ -16,34 +16,52 @@
     { id: "delivery", name: "交付总结", agent: "交付总结 Agent", approvalRequired: true },
   ];
 
+  /**
+   * Build a rotating stage wheel. Items are positioned on a circle;
+   * the wheel rotates so the active stage sits at the top pointer.
+   *
+   * Returns { items, wheelRotation, radius, activeIndex }:
+   *   - items[i].angle  — degrees clockwise from top (0 = top, 60 = right, …)
+   *   - wheelRotation   — CSS deg to rotate the wheel so current stage is at top
+   *   - radius          — wheel radius in px
+   */
   function createStageWheelItems(stages, currentStageId, completedStageIds) {
     var safeStages = stages || [];
     var completed = completedStageIds || new Set();
+    var count = Math.max(safeStages.length, 1);
     var activeIndex = safeStages.findIndex(function (stage) {
       return stage.id === currentStageId;
     });
     if (activeIndex < 0) activeIndex = 0;
 
-    return safeStages.map(function (stage, index) {
-      var denominator = Math.max(safeStages.length - 1, 1);
-      var angle = 180 - (180 * index / denominator);
-      var radians = angle * Math.PI / 180;
-      var x = 50 + Math.cos(radians) * 40;
-      var y = 78 - Math.sin(radians) * 55;
+    var segmentAngle = 360 / count;
+    var radius = 195;
+    var wheelRotation = -activeIndex * segmentAngle;
+
+    var items = safeStages.map(function (stage, index) {
+      var angle = index * segmentAngle;
       var state = completed.has(stage.id)
         ? "complete"
         : stage.id === currentStageId
           ? "current"
           : "pending";
 
-      return Object.assign({}, stage, {
+      return {
+        id: stage.id,
+        name: stage.name,
+        agent: stage.agent,
+        approvalRequired: stage.approvalRequired,
         angle: Math.round(angle),
-        x: Math.round(x * 100) / 100,
-        y: Math.round(y * 100) / 100,
-        offset: index - activeIndex,
         state: state,
-      });
+      };
     });
+
+    return {
+      items: items,
+      wheelRotation: Math.round(wheelRotation) || 0,
+      radius: radius,
+      activeIndex: activeIndex,
+    };
   }
 
   /**
