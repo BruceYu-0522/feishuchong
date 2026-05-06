@@ -1,14 +1,20 @@
+import json
 from dataclasses import dataclass
 from difflib import unified_diff
 from pathlib import Path
 from shutil import copytree, rmtree
 
+from backend import llm_runner
 from backend.schemas import Pipeline
+from backend.skills import read_skill
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 TARGET_APP = PROJECT_ROOT / "target-app"
 RUNS_DIR = PROJECT_ROOT / "devflow-runs"
+
+ALLOWED_EXTENSIONS = {".html", ".css", ".js", ".ts", ".tsx", ".jsx", ".json"}
+SKIP_DIRS = {"node_modules", ".git", "dist", "build", "__pycache__"}
 
 
 @dataclass
@@ -16,199 +22,7 @@ class CodeExecutionResult:
     content: str
     changed_files: list[str]
     workspace_path: str
-
-
-APP_JS_WITH_PRIORITY = """const tasks = [
-  { id: 1, title: "整理需求文档", priority: "high", done: false },
-  { id: 2, title: "补充接口说明", priority: "medium", done: false },
-  { id: 3, title: "同步测试结果", priority: "low", done: true },
-];
-
-let priorityFilter = "all";
-
-const priorityLabels = {
-  all: "全部",
-  high: "高",
-  medium: "中",
-  low: "低",
-};
-
-const taskList = document.querySelector("#taskList");
-const emptyState = document.querySelector("#emptyState");
-const filterButtons = document.querySelectorAll("[data-priority]");
-
-function getFilteredTasks() {
-  if (priorityFilter === "all") {
-    return tasks;
-  }
-  return tasks.filter((task) => task.priority === priorityFilter);
-}
-
-function renderTasks() {
-  const visibleTasks = getFilteredTasks();
-  taskList.innerHTML = "";
-  emptyState.hidden = visibleTasks.length > 0;
-
-  visibleTasks.forEach((task) => {
-    const item = document.createElement("li");
-    item.className = task.done ? "task-item is-done" : "task-item";
-    item.innerHTML = `
-      <span>${task.title}</span>
-      <strong>${priorityLabels[task.priority]}</strong>
-    `;
-    taskList.appendChild(item);
-  });
-}
-
-filterButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    priorityFilter = button.dataset.priority;
-    filterButtons.forEach((item) => item.classList.toggle("active", item === button));
-    renderTasks();
-  });
-});
-
-renderTasks();
-"""
-
-
-PRIORITY_FILTER_TEST = """const { readFileSync } = require("fs");
-const { join } = require("path");
-const assert = require("assert");
-
-const appSource = readFileSync(join(__dirname, "..", "app.js"), "utf-8");
-const htmlSource = readFileSync(join(__dirname, "..", "index.html"), "utf-8");
-
-assert(appSource.includes("priorityFilter"), "app.js should keep priorityFilter state");
-assert(appSource.includes("getFilteredTasks"), "app.js should filter tasks before rendering");
-assert(appSource.includes("task.priority === priorityFilter"), "tasks should be filtered by priority");
-assert(htmlSource.includes("data-priority=\\"high\\""), "UI should expose high priority filter");
-assert(htmlSource.includes("emptyState"), "UI should include empty state for no matching tasks");
-
-console.log("priority filter tests passed");
-"""
-
-
-INDEX_WITH_FILTER = """<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Target Task App</title>
-  <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-  <main class="task-shell">
-    <header>
-      <p>Target App</p>
-      <h1>任务管理</h1>
-    </header>
-
-    <nav class="priority-filter" aria-label="按优先级筛选任务">
-      <button class="active" data-priority="all" type="button">全部</button>
-      <button data-priority="high" type="button">高</button>
-      <button data-priority="medium" type="button">中</button>
-      <button data-priority="low" type="button">低</button>
-    </nav>
-
-    <ul id="taskList" class="task-list"></ul>
-    <p id="emptyState" class="empty-state" hidden>当前优先级下暂无任务。</p>
-  </main>
-  <script src="app.js"></script>
-</body>
-</html>
-"""
-
-
-STYLES_WITH_FILTER = """:root {
-  color-scheme: light;
-  font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
-}
-
-body {
-  margin: 0;
-  color: #1f2329;
-  background: #f6f8fc;
-}
-
-.task-shell {
-  width: min(680px, calc(100% - 32px));
-  margin: 48px auto;
-  padding: 24px;
-  border: 1px solid #dfe5ef;
-  border-radius: 14px;
-  background: #fff;
-}
-
-header p {
-  margin: 0;
-  color: #1664ff;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-header h1 {
-  margin: 4px 0 18px;
-}
-
-.priority-filter {
-  display: inline-flex;
-  gap: 6px;
-  padding: 4px;
-  border-radius: 10px;
-  background: #f1f4fb;
-}
-
-.priority-filter button {
-  min-width: 54px;
-  border: 0;
-  border-radius: 8px;
-  padding: 8px 12px;
-  color: #646a73;
-  background: transparent;
-  font-weight: 800;
-}
-
-.priority-filter button.active {
-  color: #fff;
-  background: #1664ff;
-}
-
-.task-list {
-  display: grid;
-  gap: 10px;
-  padding: 0;
-  margin: 18px 0 0;
-  list-style: none;
-}
-
-.task-item {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px;
-  border: 1px solid #dfe5ef;
-  border-radius: 10px;
-}
-
-.task-item.is-done span {
-  color: #8f959e;
-  text-decoration: line-through;
-}
-
-.task-item strong {
-  color: #1664ff;
-}
-
-.empty-state {
-  margin: 18px 0 0;
-  padding: 18px;
-  border: 1px dashed #dfe5ef;
-  border-radius: 10px;
-  color: #646a73;
-  text-align: center;
-}
-"""
+    model: str
 
 
 def unified_file_diff(relative_path: str, before: str, after: str) -> str:
@@ -220,6 +34,14 @@ def unified_file_diff(relative_path: str, before: str, after: str) -> str:
             tofile=f"b/{relative_path}",
         )
     )
+
+
+def summarize_diff(diff_text: str, max_lines: int = 80) -> str:
+    lines = diff_text.splitlines()
+    if len(lines) <= max_lines:
+        return diff_text
+    shown = "\n".join(lines[:max_lines])
+    return f"{shown}\n... diff 已截断（共 {len(lines)} 行），完整文件在运行副本中。"
 
 
 def prepare_workspace(pipeline: Pipeline) -> Path:
@@ -234,79 +56,270 @@ def prepare_workspace(pipeline: Pipeline) -> Path:
     return workspace
 
 
-def apply_priority_filter_change(pipeline: Pipeline) -> CodeExecutionResult:
+def read_project_files(workspace: Path) -> list[dict[str, str]]:
+    files = []
+    for path in sorted(workspace.rglob("*")):
+        if not path.is_file():
+            continue
+        if path.suffix.lower() not in ALLOWED_EXTENSIONS:
+            continue
+        if any(part in SKIP_DIRS for part in path.parts):
+            continue
+        relative_path = path.relative_to(workspace).as_posix()
+        files.append({"path": relative_path, "content": path.read_text(encoding="utf-8")})
+    return files
+
+
+def extract_json_object(content: str) -> dict | None:
+    clean = content.strip()
+    if clean.startswith("```"):
+        clean = clean.strip("`")
+        if clean.startswith("json"):
+            clean = clean[4:].strip()
+    start = clean.find("{")
+    end = clean.rfind("}")
+    if start == -1 or end == -1 or end <= start:
+        return None
+    try:
+        return json.loads(clean[start: end + 1])
+    except json.JSONDecodeError:
+        return None
+
+
+def validate_patch_payload(payload: dict, workspace: Path) -> list[dict[str, str]] | None:
+    files = payload.get("files")
+    if not isinstance(files, list) or not files:
+        return None
+
+    valid_files = []
+    for item in files:
+        if not isinstance(item, dict):
+            return None
+        relative_path = item.get("path")
+        content = item.get("content")
+        if not isinstance(relative_path, str) or not isinstance(content, str):
+            return None
+        candidate = (workspace / relative_path).resolve()
+        if workspace.resolve() not in [candidate, *candidate.parents]:
+            return None
+        if candidate.suffix.lower() not in ALLOWED_EXTENSIONS:
+            return None
+        valid_files.append({"path": relative_path.replace("\\", "/"), "content": content})
+
+    return valid_files
+
+
+def build_code_patch_prompt(pipeline: Pipeline, project_files: list[dict[str, str]]) -> str:
+    skill_text = read_skill("code")
+    design_artifact = pipeline.artifacts.get("design")
+    design_content = design_artifact.content if design_artifact else "暂无方案设计"
+
+    files_block = "\n\n".join(
+        f"FILE: {item['path']}\n```text\n{item['content']}\n```"
+        for item in project_files
+    )
+
+    return (
+        f"## 你的角色\n"
+        f"你是 DevFlow 的代码生成 Agent。你的任务是根据用户需求和技术方案，"
+        f"产出完整的、可运行的前端代码。\n\n"
+        f"## 工作规范（Skill）\n{skill_text}\n\n"
+        f"## 用户需求\n{pipeline.requirement}\n\n"
+        f"## 技术方案\n{design_content}\n\n"
+        f"## 当前工作区文件（仅供参考，了解项目环境）\n{files_block}\n\n"
+        f"## 重要说明\n"
+        f"- 如果用户需求是一个全新的功能（如游戏、工具等），**不要保留现有文件的内容**。\n"
+        f"- 你可以完全重写现有文件（如 index.html, app.js, styles.css），也可以创建新文件。\n"
+        f"- 当前文件只是模板/占位符，不是要保留的代码。请根据需求从头构建。\n"
+        f"- 例如：用户要俄罗斯方块，就写俄罗斯方块的完整代码，不要在上面叠加任务管理功能。\n\n"
+        f"## 输出要求\n"
+        f"只返回一个 JSON 对象，不要 Markdown 代码块标记，不要任何解释文字。\n"
+        f'JSON 格式：{{"files":[{{"path":"相对路径","content":"完整文件内容"}}]}}\n'
+        f"每个文件必须提供完整内容（不是 diff），HTML/CSS/JS 都必须是完整可运行的文件。\n"
+        f"不要引入 CDN 或其他外部依赖，所有代码自包含。"
+    )
+
+
+def build_test_patch_prompt(pipeline: Pipeline, project_files: list[dict[str, str]]) -> str:
+    skill_text = read_skill("test")
+    code_artifact = pipeline.artifacts.get("code")
+    requirement_artifact = pipeline.artifacts.get("requirement")
+
+    changed_files_text = (
+        ", ".join(code_artifact.changedFiles) if code_artifact else "暂无"
+    )
+    requirement_text = (
+        requirement_artifact.content if requirement_artifact else pipeline.requirement
+    )
+
+    files_block = "\n\n".join(
+        f"FILE: {item['path']}\n```text\n{item['content'][:2000]}\n```"
+        for item in project_files
+    )
+
+    return (
+        f"## 你的角色\n"
+        f"你是 DevFlow 的测试生成 Agent，负责为代码变更生成可运行的测试。\n\n"
+        f"## 工作规范（Skill）\n{skill_text}\n\n"
+        f"## 用户需求\n{pipeline.requirement}\n\n"
+        f"## 需求分析\n{requirement_text[:2000]}\n\n"
+        f"## 代码阶段修改的文件\n{changed_files_text}\n\n"
+        f"## 当前项目文件（包含已修改的代码）\n{files_block}\n\n"
+        f"## 输出要求\n"
+        f"只返回一个 JSON 对象，不要 Markdown 代码块标记，不要任何解释文字。\n"
+        f'JSON 格式：{{"files":[{{"path":"tests/xxx.test.js","content":"完整测试文件内容"}}]}}\n'
+        f"测试文件必须放在 tests/ 目录下。\n"
+        f"使用 Node.js 内置的 assert 模块，不依赖外部测试框架。\n"
+        f"测试应该验证需求中描述的预期行为。"
+    )
+
+
+def apply_llm_code_patch(pipeline: Pipeline) -> CodeExecutionResult | None:
+    if not llm_runner.llm_enabled() or not llm_runner.get_api_key():
+        return None
+
     workspace = prepare_workspace(pipeline)
-    updates = {
-        "target-app/index.html": INDEX_WITH_FILTER,
-        "target-app/styles.css": STYLES_WITH_FILTER,
-        "target-app/app.js": APP_JS_WITH_PRIORITY,
+    project_files = read_project_files(workspace)
+    if not project_files:
+        return None
+
+    payload = {
+        "model": llm_runner.MODEL_ROUTER["code"],
+        "messages": [
+            {
+                "role": "system",
+                "content": "你是一个严谨的代码修改器。只输出可解析的 JSON，格式为 {\"files\":[{\"path\":\"...\",\"content\":\"...\"}]}。",
+            },
+            {
+                "role": "user",
+                "content": build_code_patch_prompt(pipeline, project_files),
+            },
+        ],
+        "temperature": 0.2,
     }
 
-    diff_parts = []
-    for relative_path, after in updates.items():
-        file_path = workspace / Path(relative_path).name
-        before = file_path.read_text(encoding="utf-8")
-        file_path.write_text(after, encoding="utf-8")
-        diff_parts.append(f"diff --git a/{relative_path} b/{relative_path}\n")
-        diff_parts.append(unified_file_diff(relative_path, before, after))
+    try:
+        response = llm_runner.post_chat_completion(payload)
+        raw_content = llm_runner.extract_content(response)
+    except Exception:
+        return None
 
-    changed_files = list(updates.keys())
-    content = "\n".join(
+    patch_payload = extract_json_object(raw_content)
+    if not patch_payload:
+        return None
+
+    files = validate_patch_payload(patch_payload, workspace)
+    if not files:
+        return None
+
+    diff_parts = []
+    changed_files = []
+    for item in files:
+        file_path = workspace / item["path"]
+        before = file_path.read_text(encoding="utf-8") if file_path.exists() else ""
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.write_text(item["content"], encoding="utf-8")
+        relative_path = f"target-app/{item['path']}"
+        changed_files.append(relative_path)
+        diff_parts.append(f"diff --git a/{relative_path} b/{relative_path}\n")
+        diff_parts.append(unified_file_diff(relative_path, before, item["content"]))
+
+    result_content = "\n".join(
         [
-            "已对示例任务管理项目生成真实代码改动。",
+            "代码阶段已完成，变更已写入运行副本。",
             "",
-            f"运行副本：{workspace}",
+            f"运行副本路径：{workspace}",
             "",
             "修改文件：",
-            *[f"- {item}" for item in changed_files],
+            *[f"  - {f}" for f in changed_files],
             "",
-            "真实 diff：",
-            "".join(diff_parts),
+            "Diff 摘要：",
+            summarize_diff("".join(diff_parts)),
         ]
     )
     return CodeExecutionResult(
-        content=content,
+        content=result_content,
         changed_files=changed_files,
         workspace_path=str(workspace),
+        model=llm_runner.MODEL_ROUTER["code"],
     )
 
 
-def add_priority_filter_tests(pipeline: Pipeline) -> CodeExecutionResult | None:
+def apply_llm_test_patch(pipeline: Pipeline) -> CodeExecutionResult | None:
+    if not llm_runner.llm_enabled() or not llm_runner.get_api_key():
+        return None
+
     code_artifact = pipeline.artifacts.get("code")
     if not code_artifact or not code_artifact.workspacePath:
         return None
 
     workspace = Path(code_artifact.workspacePath)
-    tests_dir = workspace / "tests"
-    tests_dir.mkdir(exist_ok=True)
-    test_file = tests_dir / "priority-filter.test.js"
-    before = test_file.read_text(encoding="utf-8") if test_file.exists() else ""
-    test_file.write_text(PRIORITY_FILTER_TEST, encoding="utf-8")
+    project_files = read_project_files(workspace)
+    if not project_files:
+        return None
 
-    relative_path = "target-app/tests/priority-filter.test.js"
-    diff = "diff --git a/{0} b/{0}\n".format(relative_path)
-    diff += unified_file_diff(relative_path, before, PRIORITY_FILTER_TEST)
-    content = "\n".join(
+    payload = {
+        "model": llm_runner.MODEL_ROUTER["test"],
+        "messages": [
+            {
+                "role": "system",
+                "content": "你是一个严谨的测试文件生成器。只输出可解析的 JSON，格式为 {\"files\":[{\"path\":\"tests/...\",\"content\":\"...\"}]}。",
+            },
+            {
+                "role": "user",
+                "content": build_test_patch_prompt(pipeline, project_files),
+            },
+        ],
+        "temperature": 0.2,
+    }
+
+    try:
+        response = llm_runner.post_chat_completion(payload)
+        raw_content = llm_runner.extract_content(response)
+    except Exception:
+        return None
+
+    patch_payload = extract_json_object(raw_content)
+    if not patch_payload:
+        return None
+
+    files = validate_patch_payload(patch_payload, workspace)
+    if not files:
+        return None
+    if any(not item["path"].startswith("tests/") for item in files):
+        return None
+
+    diff_parts = []
+    changed_files = []
+    for item in files:
+        file_path = workspace / item["path"]
+        before = file_path.read_text(encoding="utf-8") if file_path.exists() else ""
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.write_text(item["content"], encoding="utf-8")
+        relative_path = f"target-app/{item['path']}"
+        changed_files.append(relative_path)
+        diff_parts.append(f"diff --git a/{relative_path} b/{relative_path}\n")
+        diff_parts.append(unified_file_diff(relative_path, before, item["content"]))
+
+    result_content = "\n".join(
         [
-            "已为真实代码改动生成测试文件。",
+            "测试阶段已完成，测试文件已写入运行副本。",
             "",
-            f"测试文件：{test_file}",
+            f"运行副本路径：{workspace}",
             "",
-            "可运行命令：",
-            "node tests/priority-filter.test.js",
+            "测试文件：",
+            *[f"  - {f}" for f in changed_files],
             "",
-            "测试覆盖：",
-            "- priorityFilter 状态存在",
-            "- getFilteredTasks 过滤函数存在",
-            "- 高优先级筛选入口存在",
-            "- 空状态节点存在",
+            "运行测试：",
+            *[f"  node {f.replace('target-app/', '')}" for f in changed_files],
             "",
-            "真实 diff：",
-            diff,
+            "Diff 摘要：",
+            summarize_diff("".join(diff_parts)),
         ]
     )
     return CodeExecutionResult(
-        content=content,
-        changed_files=[relative_path],
+        content=result_content,
+        changed_files=changed_files,
         workspace_path=str(workspace),
+        model=llm_runner.MODEL_ROUTER["test"],
     )

@@ -1,63 +1,57 @@
-# 代码评审 Skill
+# Code Review Skill
 
-## 用途
+## Upstream sources
 
-用于 DevFlow Engine 的代码评审 Agent。检查代码变更是否满足需求、方案和测试要求，并给出是否建议交付的结论。
+- Primary source: Addy Osmani, `agent-skills`, `code-review-and-quality`
+- Repository: https://github.com/addyosmani/agent-skills
+- Skill path: https://github.com/addyosmani/agent-skills/tree/main/skills/code-review-and-quality
+- GitHub stars checked on 2026-05-05: about 27.8k
 
-## 设计来源
+## DevFlow adaptation
 
-参考了代码评审类 Skill 的“问题优先、按严重程度排序、必须给出证据”的方法，并改写为 DevFlow 的评审报告格式。
+Use the upstream code-review-and-quality workflow as the base method for the DevFlow review stage. The local adaptation focuses the review on whether the generated artifacts satisfy the approved requirement and design.
 
-## 输入
+## Purpose
 
-- 需求分析产物
-- 技术方案
-- 代码变更说明
-- 测试报告
+Review the code and test artifacts for correctness, regressions, missing coverage, and delivery risk.
 
-## 工作流程
+## Required input
 
-1. 对照验收标准检查实现是否覆盖。
-2. 检查方案和代码变更是否一致。
-3. 检查测试是否覆盖关键路径和边界情况。
-4. 按严重程度列出问题。
-5. 给出是否建议进入交付。
-6. 如果发现阻断问题，明确建议 Reject。
+- Requirements artifact
+- Approved technical design
+- Code change artifact
+- Test artifact
+- Review history
 
-## 严重程度
+## Workflow
 
-- P0：会导致流程无法运行或核心功能不可用。
-- P1：核心需求缺失或明显错误。
-- P2：边界情况、可维护性或测试覆盖不足。
-- P3：命名、文案、轻微体验问题。
+1. Compare the implementation against the acceptance criteria.
+2. Compare the implementation against the approved design.
+3. Check whether tests cover the important behavior and edge cases.
+4. List findings before summary.
+5. Order findings by severity.
+6. Recommend approve only when there are no blocking issues.
 
-## 质量标准
+## Output contract
 
-- 不能只说“整体良好”。
-- 每个问题都要说明影响。
-- 建议必须可执行。
-- 结论要明确：建议交付 / 建议修改后交付 / 建议 Reject。
-
-## 反模式
-
-- 只夸不审。
-- 没有严重程度。
-- 问题描述太泛。
-- 没有根据测试结果判断风险。
-
-## 输出格式
+Return concise Chinese content with these sections:
 
 ```text
 评审结论：
 
-问题列表：
-- [P?] 问题：
-  影响：
-  建议：
+发现的问题：
+- [P0/P1/P2/P3] ...
 
-正确性检查：
+覆盖情况：
 
-测试覆盖检查：
+残余风险：
 
-交付建议：
+建议：
 ```
+
+## Quality bar
+
+- Findings must be specific and actionable.
+- Do not bury serious issues in a summary.
+- Do not approve when acceptance criteria are missing.
+- Mention uncertainty explicitly when evidence is incomplete.

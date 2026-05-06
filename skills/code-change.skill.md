@@ -1,57 +1,57 @@
-# 代码生成 Skill
+# Code Change Skill
 
-## 用途
+## Upstream sources
 
-用于 DevFlow Engine 的代码生成 Agent。根据已审批的技术方案生成可审查的代码变更说明或 diff 摘要。
+- Primary source: Addy Osmani, `agent-skills`, `incremental-implementation`
+- Supporting source: Vercel Labs, `agent-skills`, web engineering best practices when the target is frontend code
+- Addy repository: https://github.com/addyosmani/agent-skills
+- Addy skill path: https://github.com/addyosmani/agent-skills/tree/main/skills/incremental-implementation
+- Vercel repository: https://github.com/vercel-labs/agent-skills
+- GitHub stars checked on 2026-05-05: Addy about 27.8k, Vercel about 25.3k
 
-## 设计来源
+## DevFlow adaptation
 
-参考了工程型 Skill 中“小步修改、保持边界、不要顺手重构”的原则，并结合 DevFlow 当前 Mock / AI Agent 产物格式改写。
+Use the upstream incremental-implementation workflow as the base method for the DevFlow code stage. The local adaptation requires the model to return complete file contents in DevFlow's JSON patch format.
 
-## 输入
+## Purpose
 
-- 已审批技术方案
-- 需求验收标准
-- 目标项目文件结构
-- 可选：代码评审 Reject 原因
+Apply the approved design as a small, reviewable code change.
 
-## 工作流程
+## Required input
 
-1. 读取技术方案，确认本阶段只做方案中批准的内容。
-2. 列出预计修改文件。
-3. 写出核心 diff 摘要。
-4. 说明关键实现逻辑。
-5. 标出需要人工确认的点。
-6. 如果存在 Reject 原因，必须说明本次如何修复。
+- Requirements artifact
+- Approved technical design
+- Current project files
+- Review history and latest reject reason, if any
 
-## 质量标准
+## Workflow
 
-- 修改文件列表要具体。
-- diff 摘要要能被代码评审 Agent 理解。
-- 不生成无关模块变更。
-- 不虚构已经执行的测试。
+1. Read the approved design and identify the smallest useful code change.
+2. Modify only files needed for the requested behavior.
+3. Preserve existing patterns and naming.
+4. Keep generated code simple and local to the affected feature.
+5. Include complete file content for every changed file.
+6. Do not claim tests have run unless the test output is provided.
 
-## 反模式
+## Output contract
 
-- 输出一大段无法定位的代码。
-- 顺手重构其他功能。
-- 声称“已完成全部代码”但没有说明文件和变更点。
-- 忽略审批通过的方案边界。
+For model-driven code patching, return only JSON:
 
-## 输出格式
-
-```text
-修改文件列表：
-- 
-
-Diff 摘要：
-+ 
-- 
-
-关键实现说明：
-
-待人工确认：
-- 
-
-针对 Reject 的修复：
+```json
+{
+  "files": [
+    {
+      "path": "relative/path.ext",
+      "content": "complete file content"
+    }
+  ]
+}
 ```
+
+## Quality bar
+
+- No unrelated refactors.
+- No placeholder code.
+- No invented dependencies unless absolutely necessary.
+- Changed files must stay inside the target workspace.
+- Output must be parseable JSON with no Markdown wrapper.

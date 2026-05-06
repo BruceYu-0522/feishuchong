@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node --check pipeline-core.js)",
+      "Bash(node --check script.js)",
+      "Bash(python -m pytest backend/tests/test_pipeline_api.py -q)"
+    ]
+  }
+}

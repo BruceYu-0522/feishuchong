@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DevFlow Engine</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=wheel-dial-2">
 </head>
 <body>
   <main class="app-shell" id="top">
@@ -23,15 +23,19 @@
     </header>
 
     <section class="command-center" id="runner" aria-labelledby="runnerTitle">
+      <div class="setup-hint" id="setupHint">
+        <span>⚡ 首次使用请先启动后端并配置 LLM API Key，详见 README.md</span>
+      </div>
       <div class="intro-copy">
-        <p class="eyebrow">AI Workflow</p>
-        <h1 id="runnerTitle">从一句需求，到一份可交付方案</h1>
+        <p class="eyebrow">AI-Driven Pipeline</p>
+        <h1 id="runnerTitle">输入需求，AI Agent 驱动完整研发流程</h1>
       </div>
 
       <form class="request-command" id="requestForm">
         <span class="command-icon">⌘</span>
-        <textarea id="requirementInput" rows="1">给任务管理系统增加按优先级筛选任务的功能</textarea>
+        <textarea id="requirementInput" rows="1" placeholder="例如：给任务管理系统增加按优先级筛选任务的功能"></textarea>
         <button class="primary-button" type="submit">开始生成</button>
+        <button class="pause-button" id="stopButton" type="button">暂停</button>
       </form>
       <label class="project-path-field" for="projectPathInput">
         <span>项目文件夹路径（可选）</span>
@@ -58,6 +62,42 @@
         <strong id="runMonitorTitle">尚未开始</strong>
         <p id="runMonitorDetail">点击“开始生成”后，这里会实时显示当前正在执行的阶段。</p>
       </div>
+    </section>
+
+    <section class="delivery-package hidden" id="deliveryPackage" aria-labelledby="deliveryTitle">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">最终成果</p>
+          <h2 id="deliveryTitle">产品预览与交付包</h2>
+        </div>
+        <a class="secondary-button" id="productPreviewLink" href="#" target="_blank" rel="noreferrer">打开产品</a>
+      </div>
+
+      <div class="product-preview-frame">
+        <iframe id="productPreviewFrame" title="最终产品预览"></iframe>
+      </div>
+
+      <div class="delivery-grid">
+        <article>
+          <span>产品变化</span>
+          <strong id="deliverySummaryTitle">等待生成</strong>
+          <p id="deliverySummaryText">流程完成后，这里会显示最终产品和交付说明。</p>
+        </article>
+        <article>
+          <span>验收方式</span>
+          <strong id="deliveryValidationTitle">等待生成</strong>
+          <p id="deliveryValidationText">流程完成后，这里会显示怎么验证产品可用。</p>
+        </article>
+        <article>
+          <span>变更文件</span>
+          <ul id="deliveryFiles"></ul>
+        </article>
+      </div>
+
+      <label class="mr-draft" for="mrDraft">
+        <span>MR 描述草稿</span>
+        <textarea id="mrDraft" readonly rows="8"></textarea>
+      </label>
     </section>
 
     <section class="flow-board" aria-labelledby="stageTitle">
@@ -91,8 +131,27 @@
             <span id="artifactStage">阶段</span>
             <span id="artifactTime">时间</span>
           </div>
-          <pre id="artifactContent"></pre>
+          <section class="prd-map hidden" id="prdMap" aria-label="PRD 图谱">
+            <div class="visual-plan-header">
+              <span>PRD 图谱</span>
+              <strong id="prdMapTitle">需求结构图</strong>
+              <p>把需求目标、核心功能、交互原型和验收标准压缩成一张可审阅的结构图。</p>
+            </div>
+            <div class="prd-map-flow" id="prdMapFlow"></div>
+          </section>
+          <div class="markdown-document" id="artifactContent"></div>
         </article>
+
+        <section class="prototype-preview hidden" id="prototypePreview" aria-label="需求原型预览">
+          <div class="visual-plan-header">
+            <span>需求原型</span>
+            <strong id="prototypeTitle">低保真原型预览</strong>
+            <p id="prototypeDesc">AI 产品经理根据需求分析自动生成的原型页面，帮助你直观理解需求</p>
+          </div>
+          <div class="product-preview-frame">
+            <iframe id="prototypeFrame" title="需求原型预览" sandbox="allow-scripts"></iframe>
+          </div>
+        </section>
 
         <section class="visual-plan hidden" id="visualPlan" aria-label="方案设计蓝图">
           <div class="visual-plan-header">
@@ -122,7 +181,7 @@
 
         <div class="review-empty" id="reviewEmpty">
           <strong>现在不用你审批</strong>
-          <p>只有“方案设计”和“代码评审”会暂停。其他步骤系统会自己继续。</p>
+          <p>每个阶段产出后都会停下来等你确认，通过后才会进入下一环节。</p>
         </div>
 
         <div class="review-controls hidden" id="reviewControls">
@@ -138,7 +197,29 @@
     </section>
   </main>
 
-  <script src="pipeline-core.js"></script>
-  <script src="script.js"></script>
+  <div class="clarification-modal hidden" id="clarificationModal" role="dialog" aria-modal="true" aria-labelledby="clarificationTitle">
+    <form class="clarification-dialog" id="clarificationForm">
+      <div class="clarification-header">
+        <span>需求澄清</span>
+        <strong id="clarificationTitle">先回答几个关键问题</strong>
+        <p>这些回答会和你的原始需求一起交给需求分析 Agent，避免它自己猜。</p>
+      </div>
+      <div class="clarification-original">
+        <span>原始需求</span>
+        <p id="clarificationRequirement"></p>
+      </div>
+      <div class="clarification-questions" id="clarificationQuestions"></div>
+      <div class="clarification-actions">
+        <button class="ghost-button" id="clarificationCancel" type="button">先不生成</button>
+        <button class="secondary-button" id="clarificationRecommend" type="button">使用推荐回答</button>
+        <button class="primary-button" type="submit">提交回答并生成 PRD</button>
+      </div>
+    </form>
+  </div>
+
+  <script src="pipeline-core.js?v=wheel-dial-2"></script>
+  <script src="clarification-flow.js?v=wheel-dial-2"></script>
+  <script src="artifact-renderer.js?v=wheel-dial-2"></script>
+  <script src="script.js?v=wheel-dial-2"></script>
 </body>
 </html>

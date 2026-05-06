@@ -1,54 +1,54 @@
-# 测试生成 Skill
+# Test Design Skill
 
-## 用途
+## Upstream sources
 
-用于 DevFlow Engine 的测试生成 Agent。根据需求、方案和代码变更生成测试用例、测试范围和风险说明。
+- Primary source: Addy Osmani, `agent-skills`, `test-driven-development`
+- Repository: https://github.com/addyosmani/agent-skills
+- Skill path: https://github.com/addyosmani/agent-skills/tree/main/skills/test-driven-development
+- GitHub stars checked on 2026-05-05: about 27.8k
 
-## 设计来源
+## DevFlow adaptation
 
-参考了 Superpowers TDD Skill 的“先定义行为、验证失败/通过、证据优先”原则，并改写为 DevFlow 的测试产物规范。
+Use the upstream test-driven-development workflow as the base method for the DevFlow test stage. The local adaptation asks the model to generate lightweight tests for the actual changed workspace.
 
-## 输入
+## Purpose
 
-- 需求分析产物
-- 技术方案
-- 代码变更说明
+Create tests that verify the behavior requested by the acceptance criteria and implemented by the code stage.
 
-## 工作流程
+## Required input
 
-1. 从验收标准中提取必须验证的行为。
-2. 为主路径设计测试用例。
-3. 为边界情况设计测试用例。
-4. 标出暂未覆盖的组合情况。
-5. 如果当前阶段是 Mock 模式，必须明确写“模拟测试结果”。
-6. 不要声称真实测试已运行，除非输入中提供了测试输出。
+- Requirements artifact
+- Technical design artifact
+- Code change artifact
+- Current project files
 
-## 质量标准
+## Workflow
 
-- 每个验收标准至少对应一个测试点。
-- 测试用例要有输入、操作和预期结果。
-- 模拟结果和真实结果必须区分。
-- 未覆盖风险要具体。
+1. Extract testable behavior from the acceptance criteria.
+2. Prefer tests that exercise real code rather than testing mocks.
+3. Cover the main path and at least one meaningful edge case.
+4. Keep tests runnable with the project's existing tooling.
+5. For this demo target, prefer Node.js `assert` and avoid new dependencies.
+6. Do not state that tests passed unless the run output is available.
 
-## 反模式
+## Output contract
 
-- 只写“测试通过”。
-- 没有对应验收标准。
-- 把模拟测试说成真实测试。
-- 忽略空状态、默认状态和组合条件。
+For model-driven test patching, return only JSON:
 
-## 输出格式
-
-```text
-测试范围：
-
-测试用例：
-1. 场景：
-   操作：
-   预期：
-
-模拟 / 真实测试结果：
-
-未覆盖风险：
-- 
+```json
+{
+  "files": [
+    {
+      "path": "tests/example.test.js",
+      "content": "complete test file content"
+    }
+  ]
+}
 ```
+
+## Quality bar
+
+- Test files must be under `tests/`.
+- Tests must map to acceptance criteria.
+- Tests must be deterministic.
+- No snapshot-only or meaningless `assert(true)` tests unless explicitly used as a temporary smoke check.

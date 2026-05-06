@@ -3,24 +3,19 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 
-from backend.code_executor import add_priority_filter_tests, apply_priority_filter_change
-from backend.llm_runner import run_llm_agent
-from backend.mock_agents import run_mock_agent
+from backend.code_executor import apply_llm_code_patch, apply_llm_test_patch
+from backend.llm_runner import generate_requirement_prototype, generate_visual_plan, run_llm_agent
 from backend.schemas import Artifact, Pipeline, ReviewRecord, ReviewRequest, Stage
 from backend.skills import get_skill_info
 
 
-DEFAULT_REQUIREMENT = "给任务管理系统增加按优先级筛选任务的功能"
-PENCIL_SKETCH_PATH = "docs/pencil/design-blueprint.pen"
-
-
 STAGE_DEFS = [
-    ("requirement", "需求分析", "需求分析 Agent", False),
+    ("requirement", "需求分析", "需求分析 Agent", True),
     ("design", "方案设计", "方案设计 Agent", True),
-    ("code", "代码生成", "代码生成 Agent", False),
-    ("test", "测试生成", "测试生成 Agent", False),
+    ("code", "代码生成", "代码生成 Agent", True),
+    ("test", "测试生成", "测试生成 Agent", True),
     ("review", "代码评审", "代码评审 Agent", True),
-    ("delivery", "交付总结", "交付总结 Agent", False),
+    ("delivery", "交付总结", "交付总结 Agent", True),
 ]
 
 
@@ -49,64 +44,10 @@ def current_stage(pipeline: Pipeline) -> Stage:
     return pipeline.stages[stage_index(pipeline.currentStageId)]
 
 
-def summarize_requirement(requirement: str) -> str:
-    clean_requirement = requirement.strip().rstrip("。！？")
-    return f"{clean_requirement[:18]}..." if len(clean_requirement) > 18 else clean_requirement
-
-
-def priority_visual_plan(reject_reason: str) -> dict:
-    return {
-        "title": "优先级筛选方案蓝图",
-        "summary": (
-            f"本版方案已补充处理：{reject_reason}"
-            if reject_reason
-            else "从任务数据、筛选控件、列表渲染和空状态四个点完成优先级筛选。"
-        ),
-        "nodes": [
-            {"id": "data", "label": "Task 数据结构", "detail": "新增 priority: high / medium / low"},
-            {"id": "toolbar", "label": "筛选控件", "detail": "全部 / 高 / 中 / 低 segmented filter"},
-            {"id": "list", "label": "列表过滤", "detail": "按 priorityFilter 过滤任务集合"},
-            {"id": "empty", "label": "空状态", "detail": "无匹配任务时提示并提供重置入口"},
-        ],
-        "edges": [["data", "toolbar"], ["toolbar", "list"], ["list", "empty"]],
-        "risks": ["筛选条件需要和搜索、排序共存", "priority 字段需要默认值"],
-    }
-
-
-def generic_visual_plan(requirement: str, reject_reason: str) -> dict:
-    topic = summarize_requirement(requirement)
-    return {
-        "title": f"{topic}方案蓝图",
-        "summary": (
-            f"本版方案已补充处理：{reject_reason}"
-            if reject_reason
-            else f"围绕“{topic}”拆成需求理解、影响范围、实现路径和验收兜底四个设计节点。"
-        ),
-        "nodes": [
-            {"id": "intent", "label": "需求目标", "detail": f"明确要完成：{topic}"},
-            {"id": "scope", "label": "影响范围", "detail": "识别需要调整的数据、接口、页面或交互"},
-            {"id": "implementation", "label": "实现路径", "detail": "拆分核心逻辑、UI 状态和边界处理"},
-            {"id": "validation", "label": "验收兜底", "detail": "补充测试、异常状态和人工确认点"},
-        ],
-        "edges": [["intent", "scope"], ["scope", "implementation"], ["implementation", "validation"]],
-        "risks": ["需求边界需要确认", "实现方案需要覆盖异常状态"],
-    }
-
-
-def design_visual_plan(pipeline: Pipeline) -> dict:
-    reject_reason = ""
-    for record in reversed(pipeline.reviewHistory):
-        if record.stageId == "design" and record.decision == "reject":
-            reject_reason = record.reason
-            break
-
-    if any(keyword in pipeline.requirement for keyword in ["优先级", "priority", "筛选"]):
-        return priority_visual_plan(reject_reason)
-    return generic_visual_plan(pipeline.requirement, reject_reason)
-
-
 def create_pipeline(requirement: str, project_path: str | None = None) -> Pipeline:
-    clean_requirement = requirement.strip() if requirement and requirement.strip() else DEFAULT_REQUIREMENT
+    clean_requirement = requirement.strip() if requirement and requirement.strip() else ""
+    if not clean_requirement:
+        raise HTTPException(status_code=422, detail="需求描述不能为空。请输入你想要实现的功能需求。")
     return Pipeline(
         id=f"df-{uuid4().hex[:10]}",
         requirement=clean_requirement,
@@ -124,30 +65,63 @@ def run_next_stage(pipeline: Pipeline) -> Pipeline:
     stage = current_stage(pipeline)
     changed_files = []
     workspace_path = None
+    visual_plan = None
+    prototype_html = None
+    content = ""
+    model = ""
 
     if stage.id == "code":
-        code_result = apply_priority_filter_change(pipeline)
-        content = code_result.content
-        model = "local-code-executor"
-        changed_files = code_result.changed_files
-        workspace_path = code_result.workspace_path
+        result = apply_llm_code_patch(pipeline)
+        if not result:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "代码生成阶段需要大模型支持。请确认：\n"
+                    "1. 已设置环境变量 DEVFLOW_LLM_ENABLED=true\n"
+                    "2. 已设置 DEVFLOW_LLM_API_KEY\n"
+                    "3. DEVFLOW_LLM_BASE_URL 指向有效的 API 端点"
+                ),
+            )
+        content = result.content
+        model = result.model
+        changed_files = result.changed_files
+        workspace_path = result.workspace_path
+
     elif stage.id == "test":
-        test_result = add_priority_filter_tests(pipeline)
-        if test_result:
-            content = test_result.content
-            model = "local-test-generator"
-            changed_files = test_result.changed_files
-            workspace_path = test_result.workspace_path
-        else:
-            content = run_mock_agent(stage.id, pipeline)
-            model = "mock"
+        result = apply_llm_test_patch(pipeline)
+        if not result:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "测试生成阶段需要大模型支持。请确认：\n"
+                    "1. 已设置环境变量 DEVFLOW_LLM_ENABLED=true\n"
+                    "2. 已设置 DEVFLOW_LLM_API_KEY\n"
+                    "3. 代码生成阶段已成功完成"
+                ),
+            )
+        content = result.content
+        model = result.model
+        changed_files = result.changed_files
+        workspace_path = result.workspace_path
+
     else:
         llm_result = run_llm_agent(stage, pipeline)
-        if llm_result:
-            content, model = llm_result
-        else:
-            content = run_mock_agent(stage.id, pipeline)
-            model = "mock"
+        if not llm_result:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    f"{stage.agent} 需要大模型支持但返回了空内容。请确认：\n"
+                    "1. 已设置环境变量 DEVFLOW_LLM_ENABLED=true\n"
+                    "2. 已设置 DEVFLOW_LLM_API_KEY\n"
+                    "3. DEVFLOW_LLM_BASE_URL 指向有效的 API 端点"
+                ),
+            )
+        content, model = llm_result
+
+        if stage.id == "requirement":
+            prototype_html = generate_requirement_prototype(pipeline.requirement, content)
+        elif stage.id == "design":
+            visual_plan = generate_visual_plan(pipeline.requirement, content)
 
     pipeline.artifacts[stage.id] = Artifact(
         stageId=stage.id,
@@ -159,8 +133,8 @@ def run_next_stage(pipeline: Pipeline) -> Pipeline:
         model=model,
         changedFiles=changed_files,
         workspacePath=workspace_path,
-        pencilSketchPath=PENCIL_SKETCH_PATH if stage.id == "design" else None,
-        visualPlan=design_visual_plan(pipeline) if stage.id == "design" else None,
+        visualPlan=visual_plan,
+        prototypeHtml=prototype_html,
     )
 
     if stage.approvalRequired:
@@ -203,6 +177,10 @@ def submit_review(pipeline: Pipeline, request: ReviewRequest) -> Pipeline:
 
     if request.decision == "reject":
         pipeline.status = "ready"
+        return pipeline
+
+    if stage.id == "delivery":
+        pipeline.status = "completed"
         return pipeline
 
     pipeline.currentStageId = pipeline.stages[stage_index(stage.id) + 1].id

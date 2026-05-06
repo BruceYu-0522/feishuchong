@@ -1,65 +1,61 @@
-# 交付总结 Skill
+# Delivery Summary Skill
 
-## 用途
+## Upstream sources
 
-用于 DevFlow Engine 的交付总结 Agent。整合全部阶段产物，生成最终交付包和 MR / PR 描述草稿。
+- Primary source: Addy Osmani, `agent-skills`, `shipping-and-launch`
+- Supporting source: Addy Osmani, `agent-skills`, `documentation-and-adrs`
+- Repository: https://github.com/addyosmani/agent-skills
+- Shipping skill path: https://github.com/addyosmani/agent-skills/tree/main/skills/shipping-and-launch
+- Documentation skill path: https://github.com/addyosmani/agent-skills/tree/main/skills/documentation-and-adrs
+- GitHub stars checked on 2026-05-05: about 27.8k
 
-## 设计来源
+## DevFlow adaptation
 
-参考了工程交付 Skill 中“证据优先、列清楚变更、测试和残余风险”的方法，并改写为 DevFlow 的最终交付格式。
+Use the upstream shipping-and-launch workflow as the base method for the DevFlow delivery stage. The local adaptation produces a final handoff artifact and an MR/PR description draft.
 
-## 输入
+## Purpose
 
-- 需求分析产物
-- 技术方案
-- 代码变更说明
-- 测试报告
-- 代码评审报告
-- 审批记录
+Summarize what changed, how it was validated, what remains risky, and what a reviewer should know before merging.
 
-## 工作流程
+## Required input
 
-1. 汇总本次需求完成了什么。
-2. 汇总代码变更范围。
-3. 汇总测试结论。
-4. 汇总代码评审结论。
-5. 标出未完成事项和后续建议。
-6. 生成可复制的 MR / PR 描述草稿。
+- Requirements artifact
+- Technical design artifact
+- Code change artifact
+- Test artifact
+- Code review artifact
+- Approval history
 
-## 质量标准
+## Workflow
 
-- 不夸大完成度。
-- 明确区分已完成和后续建议。
-- 测试摘要必须引用测试阶段产物。
-- MR 描述要适合直接复制。
+1. Summarize the delivered user-facing behavior.
+2. List changed files and important implementation notes.
+3. Summarize tests or verification evidence from the test stage.
+4. Summarize review conclusion and residual risks.
+5. Separate completed work from follow-up work.
+6. Produce a copy-ready MR/PR description draft.
 
-## 反模式
+## Output contract
 
-- 只写“本次功能已完成”。
-- 不写测试情况。
-- 不写风险和后续事项。
-- MR 描述太空泛。
-
-## 输出格式
+Return concise Chinese content with these sections:
 
 ```text
 交付总结：
 
-完成内容：
-- 
-
 变更摘要：
-- 
 
-测试摘要：
-- 
+测试与验证：
 
 评审结论：
 
-残余风险 / 后续建议：
-- 
+未完成/后续建议：
 
-MR / PR 描述草稿：
-标题：
-正文：
+MR 描述草稿：
 ```
+
+## Quality bar
+
+- Do not overstate completion.
+- Cite actual artifacts from prior stages.
+- Include residual risk when evidence is incomplete.
+- MR/PR draft must be useful to a human reviewer.

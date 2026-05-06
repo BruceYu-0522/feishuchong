@@ -1,81 +1,70 @@
 const assert = require("node:assert/strict");
-const {
-  createPipeline,
-  runNextStage,
-  runUntilReviewOrComplete,
-  submitReview,
-} = require("../pipeline-core");
+const { STAGES, createClient, createStageWheelItems } = require("../pipeline-core");
 
-function runToFirstReview(pipeline) {
-  let current = pipeline;
-  current = runNextStage(current);
-  current = runNextStage(current);
-  return current;
-}
+// STAGES definition must be valid
+assert.equal(STAGES.length, 6, "should have 6 stages");
+assert.equal(STAGES[0].id, "requirement");
+assert.equal(STAGES[0].name, "需求分析");
+assert.equal(STAGES[0].approvalRequired, true, "requirement should require approval");
+assert.equal(STAGES[1].id, "design");
+assert.equal(STAGES[1].approvalRequired, true, "design should require approval");
+assert.equal(STAGES[2].id, "code");
+assert.equal(STAGES[2].approvalRequired, true, "code should require approval");
+assert.equal(STAGES[3].id, "test");
+assert.equal(STAGES[3].approvalRequired, true, "test should require approval");
+assert.equal(STAGES[4].id, "review");
+assert.equal(STAGES[4].approvalRequired, true, "review should require approval");
+assert.equal(STAGES[5].id, "delivery");
+assert.equal(STAGES[5].approvalRequired, true, "delivery should require approval");
 
-function runToFinalReview(pipeline) {
-  let current = pipeline;
-  current = runNextStage(current);
-  current = runNextStage(current);
-  current = runNextStage(current);
-  return current;
-}
-
-const initial = createPipeline("给任务管理系统增加按优先级筛选任务的功能");
-assert.equal(initial.status, "ready");
-assert.equal(initial.currentStageId, "requirement");
-assert.equal(initial.stages.length, 6);
-
-const autoFirstReview = runUntilReviewOrComplete(initial);
-assert.equal(autoFirstReview.status, "waiting_review");
-assert.equal(autoFirstReview.currentStageId, "design");
-assert.ok(autoFirstReview.artifacts.requirement);
-assert.ok(autoFirstReview.artifacts.design);
-
-const waitingForPlanReview = runToFirstReview(initial);
-assert.equal(waitingForPlanReview.status, "waiting_review");
-assert.equal(waitingForPlanReview.currentStageId, "design");
-assert.equal(waitingForPlanReview.artifacts.requirement.agent, "需求分析 Agent");
-assert.equal(waitingForPlanReview.artifacts.design.agent, "方案设计 Agent");
-assert.equal(waitingForPlanReview.artifacts.design.visualPlan.title, "优先级筛选方案蓝图");
-assert.ok(waitingForPlanReview.artifacts.design.visualPlan.nodes.length >= 4);
-assert.equal(waitingForPlanReview.artifacts.design.pencilSketchPath, "docs/pencil/design-blueprint.pen");
-
-const customPipeline = createPipeline("给登录页面增加短信验证码校验");
-const customDesign = runUntilReviewOrComplete(customPipeline);
-assert.equal(customDesign.artifacts.design.visualPlan.title, "给登录页面增加短信验证码校验方案蓝图");
-assert.match(customDesign.artifacts.design.visualPlan.summary, /短信验证码/);
-assert.notEqual(customDesign.artifacts.design.visualPlan.title, "优先级筛选方案蓝图");
-
-const rejected = submitReview(waitingForPlanReview, {
-  decision: "reject",
-  reason: "缺少空状态处理",
+// Each stage must have required fields
+STAGES.forEach(function (stage, index) {
+  assert.ok(stage.id, "stage " + index + " missing id");
+  assert.ok(stage.name, "stage " + index + " missing name");
+  assert.ok(stage.agent, "stage " + index + " missing agent");
+  assert.equal(typeof stage.approvalRequired, "boolean", "stage " + index + " approvalRequired must be boolean");
 });
-assert.equal(rejected.status, "ready");
-assert.equal(rejected.currentStageId, "design");
-assert.equal(rejected.reviewHistory.length, 1);
-assert.equal(rejected.reviewHistory[0].decision, "reject");
 
-const regeneratedDesign = runNextStage(rejected);
-assert.equal(regeneratedDesign.status, "waiting_review");
-assert.match(regeneratedDesign.artifacts.design.content, /缺少空状态处理/);
+// Approval checkpoints: every stage should stop for human review
+var approvalStages = STAGES.filter(function (s) { return s.approvalRequired; });
+assert.equal(approvalStages.length, STAGES.length, "every stage must have a human-in-the-loop checkpoint");
+assert.deepEqual(approvalStages.map(function (s) { return s.id; }), STAGES.map(function (s) { return s.id; }));
 
-const approvedPlan = submitReview(regeneratedDesign, { decision: "approve" });
-assert.equal(approvedPlan.status, "ready");
-assert.equal(approvedPlan.currentStageId, "code");
+// createClient must return an API client with expected methods
+var client = createClient("http://127.0.0.1:8000");
+assert.equal(typeof client.health, "function");
+assert.equal(typeof client.createPipeline, "function");
+assert.equal(typeof client.getPipeline, "function");
+assert.equal(typeof client.runUntilReview, "function");
+assert.equal(typeof client.runNext, "function");
+assert.equal(typeof client.submitReview, "function");
 
-const waitingForFinalReview = runToFinalReview(approvedPlan);
-assert.equal(waitingForFinalReview.status, "waiting_review");
-assert.equal(waitingForFinalReview.currentStageId, "review");
-assert.equal(waitingForFinalReview.artifacts.code.agent, "代码生成 Agent");
-assert.equal(waitingForFinalReview.artifacts.test.agent, "测试生成 Agent");
-assert.equal(waitingForFinalReview.artifacts.review.agent, "代码评审 Agent");
+// createClient should strip trailing slashes from base URL
+var trimmedClient = createClient("http://example.com/api/");
+// Internal request would use "http://example.com/api" + path — we can't inspect private vars
+// but we verify the function exists and works without throwing
+assert.ok(trimmedClient);
 
-const approvedFinal = submitReview(waitingForFinalReview, { decision: "approve" });
-const completed = runNextStage(approvedFinal);
-assert.equal(completed.status, "completed");
-assert.equal(completed.currentStageId, "delivery");
-assert.equal(completed.artifacts.delivery.agent, "交付总结 Agent");
-assert.match(completed.artifacts.delivery.content, /MR 描述草稿/);
+// Export nothing extra beyond the documented API
+var exported = require("../pipeline-core");
+assert.ok(exported.STAGES);
+assert.ok(exported.createClient);
+assert.ok(exported.createStageWheelItems);
+assert.equal(Object.keys(exported).length, 3, "should only export the documented core API");
+
+// Stage wheel should place all stages on an upper semicircle and mark state
+var wheelItems = createStageWheelItems(STAGES, "code", new Set(["requirement", "design"]));
+assert.equal(wheelItems.length, STAGES.length);
+assert.equal(wheelItems[0].angle, 180);
+assert.equal(wheelItems[wheelItems.length - 1].angle, 0);
+assert.ok(wheelItems.every(function (item) { return item.x >= 0 && item.x <= 100; }));
+assert.ok(wheelItems.every(function (item) { return item.y >= 0 && item.y <= 100; }));
+assert.equal(wheelItems[0].state, "complete");
+assert.equal(wheelItems[1].state, "complete");
+assert.equal(wheelItems[2].state, "current");
+assert.equal(wheelItems[3].state, "pending");
+assert.equal(wheelItems[2].offset, 0);
+assert.equal(wheelItems[1].offset, -1);
+assert.equal(wheelItems[3].offset, 1);
 
 console.log("pipeline-core tests passed");

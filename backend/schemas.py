@@ -24,11 +24,12 @@ class Artifact(BaseModel):
     skill: SkillInfo
     content: str
     createdAt: str
-    model: str = "mock"
+    model: str
     changedFiles: List[str] = Field(default_factory=list)
     workspacePath: Optional[str] = None
     pencilSketchPath: Optional[str] = None
     visualPlan: Optional[dict] = None
+    prototypeHtml: Optional[str] = None
 
 
 class ReviewRecord(BaseModel):

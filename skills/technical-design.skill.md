@@ -1,68 +1,63 @@
-# 方案设计 Skill
+# Technical Design Skill
 
-## 用途
+## Upstream sources
 
-用于 DevFlow Engine 的方案设计 Agent。根据需求分析产物生成技术方案，说明影响范围、实现路径、风险和回退处理。
+- Primary source: Addy Osmani, `agent-skills`, `planning-and-task-breakdown`
+- Supporting source: Addy Osmani, `agent-skills`, `spec-driven-development`
+- Repository: https://github.com/addyosmani/agent-skills
+- Planning skill path: https://github.com/addyosmani/agent-skills/tree/main/skills/planning-and-task-breakdown
+- Spec skill path: https://github.com/addyosmani/agent-skills/tree/main/skills/spec-driven-development
+- GitHub stars checked on 2026-05-05: about 27.8k
 
-## 设计来源
+## DevFlow adaptation
 
-参考了 Superpowers 中“写计划前先定义文件边界、保持模块职责清晰、YAGNI”的工程思路，并改写为 DevFlow 的方案设计规范。
+Use the upstream planning and task-breakdown workflow as the base method for the DevFlow design stage. The local adaptation turns a requirement artifact into a small implementation plan that can be approved or rejected by a human reviewer.
 
-## 输入
+## Purpose
 
-- 需求分析产物
-- 目标项目结构或已有模块说明
-- 上一阶段验收标准
-- 可选：Reject 原因
+Create a technical plan that explains the impact area, implementation path, risks, and validation strategy before code is generated.
 
-## 工作流程
+## Required input
 
-1. 先列出本次需求影响的页面、模块、数据结构和接口。
-2. 按最小实现路径设计，不引入本阶段不需要的复杂能力。
-3. 明确哪些逻辑放前端，哪些逻辑放后端。
-4. 写出数据结构或状态变化。
-5. 写出 UI / API 变化。
-6. 标出实现风险和测试重点。
-7. 如果有 Reject 原因，必须单独说明如何修正。
+- Requirements-analysis artifact
+- Target project files or project summary
+- Review history and latest reject reason, if any
 
-## 质量标准
+## Workflow
 
-- 方案必须和需求验收标准一一对应。
-- 每个修改点都要有明确原因。
-- 不做无关重构。
-- 风险点不能只写“有风险”，要说明具体风险。
+1. Map each acceptance criterion to a design decision.
+2. Identify impacted files, modules, UI states, and data structures.
+3. Break the work into small implementation steps.
+4. Keep the plan minimal; avoid unnecessary architecture or platform changes.
+5. Identify risk areas and validation checks.
+6. If a reject reason exists, include a specific correction section.
 
-## 反模式
+## Output contract
 
-- 直接生成代码，不解释方案。
-- 引入数据库、登录、多用户等非必要能力。
-- 只写“新增筛选功能”，不说明影响模块。
-- 对 Reject 原因只说“已优化”，没有具体补充。
-
-## 输出格式
+Return concise Chinese content with these sections:
 
 ```text
-技术方案：
+方案摘要：
 
-涉及模块：
-- 
+影响范围：
 
-数据结构 / 状态变化：
-- 
-
-UI / API 变化：
-- 
-
-实现步骤：
+实现路径：
 1.
 2.
 3.
 
-风险点：
-- 
+数据/状态变化：
 
-测试重点：
-- 
+UI 或 API 变化：
 
-针对 Reject 的修正：
+风险与验证：
+
+对 Reject 原因的处理：
 ```
+
+## Quality bar
+
+- Every implementation step must trace back to an acceptance criterion.
+- The plan must be small enough for the next code stage to execute.
+- Do not include unrelated refactors.
+- Make human review easy by naming concrete files or modules when known.
