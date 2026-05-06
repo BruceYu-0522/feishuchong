@@ -77,6 +77,13 @@ var elements = {
   clarificationQuestions: document.querySelector("#clarificationQuestions"),
   clarificationCancel: document.querySelector("#clarificationCancel"),
   clarificationRecommend: document.querySelector("#clarificationRecommend"),
+  // Workspace
+  workspace: document.querySelector("#workspace"),
+  workspaceFileList: document.querySelector("#workspaceFileList"),
+  workspaceFileCount: document.querySelector("#workspaceFileCount"),
+  workspaceEmpty: document.querySelector("#workspaceEmpty"),
+  workspacePath: document.querySelector("#workspacePath"),
+  exportWorkspaceLink: document.querySelector("#exportWorkspaceLink"),
 };
 
 // ── Pipeline helpers ──
@@ -632,6 +639,106 @@ function renderControls() {
   elements.autoRunButton.classList.add("hidden");
 }
 
+function renderWorkspace() {
+  if (!pipeline) {
+    elements.workspace.classList.add("hidden");
+    return;
+  }
+
+  var completedIds = Object.keys(pipeline.artifacts);
+  if (completedIds.length === 0) {
+    elements.workspace.classList.add("hidden");
+    return;
+  }
+
+  elements.workspace.classList.remove("hidden");
+  elements.exportWorkspaceLink.href =
+    "http://127.0.0.1:8001/pipelines/" + pipeline.id + "/workspace/export";
+
+  // Fetch workspace file list
+  fetch("http://127.0.0.1:8001/pipelines/" + pipeline.id + "/workspace")
+    .then(function (res) { return res.json(); })
+    .then(function (data) {
+      var files = data.files || [];
+      elements.workspaceFileCount.textContent = files.length + " 个文件";
+      elements.workspacePath.textContent = data.path || "";
+
+      if (files.length === 0) {
+        elements.workspaceEmpty.classList.remove("hidden");
+        elements.workspaceFileList.querySelectorAll(".workspace-file-item").forEach(function (el) { el.remove(); });
+        return;
+      }
+
+      elements.workspaceEmpty.classList.add("hidden");
+
+      // Build file list
+      var existingItems = {};
+      elements.workspaceFileList.querySelectorAll(".workspace-file-item").forEach(function (el) {
+        existingItems[el.dataset.filename] = el;
+      });
+
+      files.forEach(function (file) {
+        var name = file.name;
+        var size = file.size < 1024
+          ? file.size + " B"
+          : file.size < 1024 * 1024
+            ? (file.size / 1024).toFixed(1) + " KB"
+            : (file.size / (1024 * 1024)).toFixed(1) + " MB";
+
+        if (existingItems[name]) {
+          // Update size only
+          var sizeEl = existingItems[name].querySelector(".file-size");
+          if (sizeEl) sizeEl.textContent = size;
+          delete existingItems[name];
+          return;
+        }
+
+        var item = document.createElement("div");
+        item.className = "workspace-file-item";
+        item.dataset.filename = name;
+        item.title = "点击预览文件";
+
+        var icon = document.createElement("span");
+        icon.className = "file-icon";
+        var ext = name.split(".").pop().toLowerCase();
+        icon.textContent = ext === "md" ? "📄" : ext === "html" ? "🌐" : ext === "mmd" ? "📊" : "📁";
+
+        var info = document.createElement("div");
+        info.className = "file-info";
+
+        var fileName = document.createElement("span");
+        fileName.className = "file-name";
+        fileName.textContent = name;
+
+        var fileSize = document.createElement("span");
+        fileSize.className = "file-size";
+        fileSize.textContent = size;
+
+        info.appendChild(fileName);
+        info.appendChild(fileSize);
+
+        var preview = document.createElement("a");
+        preview.className = "file-link";
+        preview.href = "http://127.0.0.1:8001/pipelines/" + pipeline.id + "/workspace/files/" + name;
+        preview.target = "_blank";
+        preview.textContent = "打开";
+
+        item.appendChild(icon);
+        item.appendChild(info);
+        item.appendChild(preview);
+        elements.workspaceFileList.appendChild(item);
+      });
+
+      // Remove stale items
+      Object.keys(existingItems).forEach(function (name) {
+        existingItems[name].remove();
+      });
+    })
+    .catch(function () {
+      // Workspace not ready yet
+    });
+}
+
 function render() {
   setStatusBadge();
   renderDeliveryPackage();
@@ -640,6 +747,7 @@ function render() {
   renderReview();
   renderRunMonitor();
   renderControls();
+  renderWorkspace();
 }
 
 // ── API actions ──
@@ -836,6 +944,7 @@ elements.resetButton.addEventListener("click", function () {
   pendingProjectPath = "";
   disconnectLiveOutput();
   hideLiveOutput();
+  elements.workspace.classList.add("hidden");
   if (abortController) {
     abortController.abort();
     abortController = null;

@@ -5,6 +5,9 @@ from dotenv import load_dotenv
 # Load .env from project root before anything else
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
+import io
+import zipfile
+
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -102,3 +105,82 @@ def preview_target_app_endpoint(pipeline_id: str, asset_path: str) -> FileRespon
         raise HTTPException(status_code=404, detail="Preview asset not found.")
 
     return FileResponse(requested)
+
+
+@app.get("/pipelines/{pipeline_id}/workspace")
+def list_workspace_endpoint(pipeline_id: str):
+    run_dir = RUNS_DIR / pipeline_id
+    workspace = run_dir / "workspace"
+    target_app = run_dir / "target-app"
+
+    files = []
+    seen = set()
+
+    # Collect workspace files
+    if workspace.exists():
+        for f in sorted(workspace.rglob("*")):
+            if f.is_file():
+                rel = f.relative_to(workspace).as_posix()
+                files.append({"name": rel, "size": f.stat().st_size})
+                seen.add(rel)
+
+    # Also include target-app files with target-app/ prefix
+    if target_app.exists():
+        for f in sorted(target_app.rglob("*")):
+            if f.is_file() and f.suffix.lower() in {".html", ".css", ".js", ".ts", ".tsx", ".jsx", ".json", ".md"}:
+                rel = "target-app/" + f.relative_to(target_app).as_posix()
+                if rel not in seen:
+                    files.append({"name": rel, "size": f.stat().st_size})
+                    seen.add(rel)
+
+    if not files:
+        return {"files": [], "path": str(run_dir)}
+
+    return {"files": files, "path": str(run_dir)}
+
+
+@app.get("/pipelines/{pipeline_id}/workspace/files/{file_path:path}")
+def get_workspace_file_endpoint(pipeline_id: str, file_path: str):
+    run_dir = (RUNS_DIR / pipeline_id).resolve()
+
+    # Resolve the file under run_dir to support both workspace/ and target-app/ prefixes
+    requested = (run_dir / file_path).resolve()
+    if run_dir not in [requested, *requested.parents]:
+        raise HTTPException(status_code=404, detail="File not found")
+    if not requested.exists() or not requested.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(requested)
+
+
+@app.get("/pipelines/{pipeline_id}/workspace/export")
+def export_workspace_endpoint(pipeline_id: str):
+    run_dir = RUNS_DIR / pipeline_id
+    workspace = run_dir / "workspace"
+    target_app = run_dir / "target-app"
+
+    has_files = False
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        # Export workspace files
+        if workspace.exists():
+            for f in sorted(workspace.rglob("*")):
+                if f.is_file():
+                    zf.write(f, "workspace/" + f.relative_to(workspace).as_posix())
+                    has_files = True
+
+        # Export target-app files
+        if target_app.exists():
+            for f in sorted(target_app.rglob("*")):
+                if f.is_file():
+                    zf.write(f, "target-app/" + f.relative_to(target_app).as_posix())
+                    has_files = True
+
+    if not has_files:
+        raise HTTPException(status_code=404, detail="Workspace is empty")
+
+    buf.seek(0)
+    return StreamingResponse(
+        iter([buf.read()]),
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename=workspace-{pipeline_id}.zip"},
+    )

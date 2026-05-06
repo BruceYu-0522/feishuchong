@@ -108,10 +108,7 @@
         </div>
         <span class="mini-badge" id="stageCount">0 / 6</span>
       </div>
-      <div class="stage-wheel-viewport" id="stageWheelViewport">
-	        <div class="stage-wheel-pointer"></div>
-	        <div class="stage-wheel" id="stageWheel"></div>
-	      </div>
+      <ol class="stage-row" id="stageList"></ol>
     </section>
 
     <section class="live-output-panel hidden" id="liveOutput" aria-live="polite">
@@ -213,6 +210,26 @@
           </div>
         </div>
       </section>
+    </section>
+
+    <section class="workspace-panel hidden" id="workspace" aria-labelledby="workspaceTitle">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">工作区</p>
+          <h2 id="workspaceTitle">生成文件</h2>
+        </div>
+        <span class="mini-badge" id="workspaceFileCount">0 个文件</span>
+      </div>
+      <div class="workspace-file-list" id="workspaceFileList">
+        <div class="workspace-empty" id="workspaceEmpty">
+          <strong>暂无文件</strong>
+          <p>Pipeline 运行后，所有阶段的产物会自动保存到这里，方便查看和导出。</p>
+        </div>
+      </div>
+      <div class="workspace-footer" id="workspaceFooter">
+        <span id="workspacePath"></span>
+        <a class="secondary-button" id="exportWorkspaceLink" href="#" download>导出 ZIP</a>
+      </div>
     </section>
   </main>
 

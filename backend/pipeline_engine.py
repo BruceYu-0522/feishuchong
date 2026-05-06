@@ -13,6 +13,9 @@ from backend.llm_runner import (
     run_llm_agent,
     stream_llm_agent,
 )
+from pathlib import Path
+
+from backend.code_executor import RUNS_DIR
 from backend.schemas import Artifact, Pipeline, ReviewRecord, ReviewRequest, Stage
 from backend.skills import get_skill_info
 
@@ -26,9 +29,37 @@ STAGE_DEFS = [
     ("delivery", "交付总结", "交付总结 Agent", True),
 ]
 
+STAGE_FILE_NAMES = {
+    "requirement": "01-requirement.md",
+    "design": "02-design.md",
+    "code": "03-code.md",
+    "test": "04-test.md",
+    "review": "05-review.md",
+    "delivery": "06-delivery.md",
+}
+
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def save_workspace_files(pipeline: Pipeline) -> Path:
+    """Save all pipeline artifacts as files in the workspace directory."""
+    workspace = RUNS_DIR / pipeline.id / "workspace"
+    workspace.mkdir(parents=True, exist_ok=True)
+
+    for stage_id, artifact in pipeline.artifacts.items():
+        if stage_id in STAGE_FILE_NAMES:
+            file_path = workspace / STAGE_FILE_NAMES[stage_id]
+            file_path.write_text(artifact.content, encoding="utf-8")
+
+        if artifact.prototypeHtml:
+            (workspace / "prototype.html").write_text(artifact.prototypeHtml, encoding="utf-8")
+
+        if artifact.mermaidCode:
+            (workspace / "prd-mermaid.mmd").write_text(artifact.mermaidCode, encoding="utf-8")
+
+    return workspace
 
 
 def build_stages() -> list[Stage]:
@@ -158,6 +189,8 @@ def run_next_stage(pipeline: Pipeline) -> Pipeline:
         prdImageUrl=prd_image_url,
     )
 
+    save_workspace_files(pipeline)
+
     if stage.approvalRequired:
         pipeline.status = "waiting_review"
         return pipeline
@@ -286,6 +319,8 @@ async def run_until_review_with_stream(pipeline):
                 mermaidCode=mermaid_code,
                 prdImageUrl=prd_image_url,
             )
+
+            save_workspace_files(pipeline)
 
         if stage.approvalRequired:
             pipeline.status = "waiting_review"

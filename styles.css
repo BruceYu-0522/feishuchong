@@ -748,6 +748,121 @@ input:focus {
   border: 1px solid var(--line);
 }
 
+/* ── Workspace Panel ── */
+
+.workspace-panel {
+  margin-top: 18px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.workspace-file-list {
+  display: grid;
+  gap: 8px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.workspace-empty {
+  display: grid;
+  place-items: center;
+  min-height: 120px;
+  padding: 20px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  color: var(--muted);
+  text-align: center;
+  background: var(--surface-soft);
+}
+
+.workspace-empty strong {
+  display: block;
+  color: var(--ink);
+}
+
+.workspace-empty p {
+  margin: 6px 0 0;
+  max-width: 400px;
+  line-height: 1.6;
+}
+
+.workspace-file-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  transition: border-color 0.2s;
+}
+
+.workspace-file-item:hover {
+  border-color: var(--blue);
+}
+
+.workspace-file-item .file-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.workspace-file-item .file-info {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.workspace-file-item .file-name {
+  font-size: 13px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-file-item .file-size {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.workspace-file-item .file-link {
+  flex-shrink: 0;
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+  padding: 4px 10px;
+  border: 1px solid rgba(22, 100, 255, 0.2);
+  border-radius: 6px;
+}
+
+.workspace-file-item .file-link:hover {
+  background: rgba(22, 100, 255, 0.08);
+}
+
+.workspace-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.workspace-footer span {
+  color: var(--muted);
+  font-size: 11px;
+  font-family: "Cascadia Code", Consolas, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Workbench */
 .workbench-grid {
   display: grid;
