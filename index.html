@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DevFlow Engine</title>
-  <link rel="stylesheet" href="styles.css?v=rotating-wheel-3">
+  <link rel="stylesheet" href="styles.css?v=horizontal-row-4">
 </head>
 <body>
   <main class="app-shell" id="top">
@@ -114,6 +114,22 @@
 	      </div>
     </section>
 
+    <section class="live-output-panel hidden" id="liveOutput" aria-live="polite">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">实时输出</p>
+          <h2 id="liveOutputTitle">AI 正在工作…</h2>
+        </div>
+        <span class="mini-badge" id="liveOutputStage">等待中</span>
+      </div>
+      <div class="live-output-stream" id="liveOutputStream">
+        <div class="live-output-empty" id="liveOutputEmpty">
+          <strong>暂无实时输出</strong>
+          <p>开始执行后，这里会实时显示 AI 模型的输出内容和系统操作。</p>
+        </div>
+      </div>
+    </section>
+
     <section class="workbench-grid">
       <section class="artifact-panel" id="artifacts" aria-labelledby="artifactTitle">
         <div class="section-heading">
@@ -220,9 +236,9 @@
     </form>
   </div>
 
-  <script src="pipeline-core.js?v=rotating-wheel-3"></script>
-  <script src="clarification-flow.js?v=rotating-wheel-3"></script>
-  <script src="artifact-renderer.js?v=rotating-wheel-3"></script>
-  <script src="script.js?v=rotating-wheel-3"></script>
+  <script src="pipeline-core.js?v=horizontal-row-4"></script>
+  <script src="clarification-flow.js?v=horizontal-row-4"></script>
+  <script src="artifact-renderer.js?v=horizontal-row-4"></script>
+  <script src="script.js?v=horizontal-row-4"></script>
 </body>
 </html>

@@ -1,5 +1,7 @@
+import asyncio
+import json
 import os
-from typing import Any
+from typing import Any, AsyncGenerator
 
 import httpx
 
@@ -344,3 +346,214 @@ def generate_requirement_prototype(requirement: str, analysis_text: str) -> str 
         return None
 
     return html
+
+
+# ── Streaming LLM ──
+
+async def stream_llm_agent(stage: Stage, pipeline: Pipeline) -> AsyncGenerator[str, None]:
+    """Stream the LLM output token-by-token as SSE events.
+
+    Yields:
+        "data: <token>" for each text chunk
+        "event: system\ndata: <message>" for system operations
+        "event: done\ndata: " when complete
+        "event: error\ndata: <message>" on failure
+    """
+    if not llm_enabled() or not get_api_key():
+        yield "event: error\ndata: LLM 未启用或 API Key 未设置\n\n"
+        return
+
+    yield f"event: system\ndata: 正在调用 {MODEL_ROUTER.get(stage.id, 'unknown')} 模型…\n\n"
+    yield f"event: stage\ndata: {stage.name}\n\n"
+
+    payload = build_payload(stage, pipeline)
+    payload["stream"] = True
+
+    api_key = get_api_key()
+    full_content = ""
+
+    try:
+        async with httpx.AsyncClient(timeout=300) as client:
+            async with client.stream(
+                "POST",
+                f"{get_base_url()}/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            ) as response:
+                response.raise_for_status()
+
+                async for line in response.aiter_lines():
+                    if not line or not line.startswith("data: "):
+                        continue
+
+                    data_str = line[6:]
+                    if data_str == "[DONE]":
+                        break
+
+                    try:
+                        data = json.loads(data_str)
+                        choices = data.get("choices") or []
+                        if not choices:
+                            continue
+                        delta = choices[0].get("delta") or {}
+                        content = delta.get("content") or ""
+                        if content:
+                            full_content += content
+                            yield f"data: {content}\n\n"
+                    except (json.JSONDecodeError, KeyError, IndexError):
+                        continue
+
+    except Exception as exc:
+        yield f"event: error\ndata: LLM 调用失败：{exc}\n\n"
+        return
+
+    if not full_content.strip():
+        yield "event: error\ndata: LLM 返回了空内容\n\n"
+        return
+
+    # Store the full content for later retrieval
+    yield f"event: system\ndata: 已接收 {len(full_content)} 个字符，正在处理产物…\n\n"
+    yield f"event: result\ndata: {json.dumps({'content': full_content, 'model': payload['model']})}\n\n"
+    yield "event: done\ndata: \n\n"
+
+
+# ── PRD Mermaid Diagram Generation ──
+
+def generate_prd_mermaid(requirement: str, prd_text: str) -> dict | None:
+    """Generate a Mermaid mindmap or flowchart from the PRD document.
+
+    Returns:
+        dict with 'code' (Mermaid source) and optionally 'svg' (if we could render it)
+        None on failure
+    """
+    if not llm_enabled() or not get_api_key():
+        return None
+
+    system_prompt = (
+        "你是一个技术文档可视化专家。你的任务是根据 PRD（产品需求文档）生成 Mermaid 格式的思维导图或流程图。\n\n"
+        "要求：\n"
+        "- 只输出 Mermaid 代码，不要 markdown 包裹，不要解释\n"
+        "- 使用 mindmap 或 graph TD 格式\n"
+        "- 将 PRD 中的核心需求、功能模块、用户角色、验收标准等关键信息组织成清晰的层级结构\n"
+        "- 中文内容用双引号包裹，例如：mindmap\n  root(\"需求名称\")\n    功能模块\n      \"功能1\"\n      \"功能2\"\n"
+        "- 不要超过 50 行\n"
+        "- 确保 Mermaid 语法正确，可以直接渲染\n\n"
+        "示例输出：\n"
+        "mindmap\n  root(\"任务管理系统筛选功能\")\n    用户角色\n      \"普通用户\"\n      \"管理员\"\n    "
+        "核心功能\n      \"按优先级筛选\"\n      \"按状态筛选\"\n      \"组合筛选\"\n    "
+        "验收标准\n      \"筛选结果准确\"\n      \"响应时间<200ms\"\n"
+    )
+
+    user_prompt = (
+        f"用户需求：{requirement}\n\n"
+        f"PRD 文档：\n{prd_text[:3000]}\n\n"
+        "请根据上述 PRD 生成 Mermaid 思维导图代码。"
+    )
+
+    try:
+        payload = {
+            "model": "deepseek-v4-flash",
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": 0.2,
+        }
+        response = post_chat_completion(payload)
+        raw = extract_content(response)
+    except Exception:
+        return None
+
+    if not raw:
+        return None
+
+    # Clean up the Mermaid code
+    code = raw.strip()
+    # Remove markdown code fences if present
+    if code.startswith("```mermaid"):
+        code = code[10:]
+    elif code.startswith("```"):
+        code = code[3:]
+    if code.endswith("```"):
+        code = code[:-3]
+    code = code.strip()
+
+    # Basic validation: must contain a valid Mermaid diagram type
+    valid_starters = ("mindmap", "graph ", "flowchart ", "gantt", "pie", "erDiagram", "sequenceDiagram", "classDiagram", "stateDiagram")
+    if not any(code.startswith(starter) for starter in valid_starters):
+        return None
+
+    return {"code": code}
+
+
+# ── PRD Image Generation Fallback ──
+
+def _post_image_generation(payload: dict) -> dict | None:
+    """Call the /v1/images/generations endpoint (OpenAI-compatible)."""
+    api_key = get_api_key()
+    try:
+        response = httpx.post(
+            f"{get_base_url()}/v1/images/generations",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=120,
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception:
+        return None
+
+
+def generate_prd_image(requirement: str, prd_text: str) -> str | None:
+    """Generate an image visualizing the PRD content using an image generation model.
+
+    Returns a URL or base64 data URL of the generated image, or None on failure.
+    """
+    if not llm_enabled() or not get_api_key():
+        return None
+
+    # Generate a detailed illustration prompt from the PRD
+    prompt_system = (
+        "你是一个产品插画师。根据 PRD 文档，生成一段英文的插画/信息图描述，"
+        "用于 AI 图像生成模型。描述要详细、视觉化，包含布局、颜色、元素。"
+        "只输出英文 prompt，不超过 300 字符。"
+    )
+
+    try:
+        prompt_payload = {
+            "model": "deepseek-v4-flash",
+            "messages": [
+                {"role": "system", "content": prompt_system},
+                {"role": "user", "content": f"需求：{requirement}\n\nPRD：{prd_text[:2000]}"},
+            ],
+            "temperature": 0.3,
+        }
+        prompt_response = post_chat_completion(prompt_payload)
+        image_prompt = extract_content(prompt_response)
+    except Exception:
+        return None
+
+    if not image_prompt:
+        return None
+
+    # Try image generation via /v1/images/generations (OpenAI-compatible)
+    models_to_try = ["gemini-2.5-flash-image", "dall-e-3", "image2"]
+    for model in models_to_try:
+        result = _post_image_generation({
+            "model": model,
+            "prompt": image_prompt.strip(),
+            "n": 1,
+            "size": "1024x768",
+        })
+        if result:
+            data = (result.get("data") or [])[0] if result.get("data") else None
+            if data:
+                return data.get("url") or data.get("b64_json")
+
+    return None

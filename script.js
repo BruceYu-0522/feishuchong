@@ -1,4 +1,4 @@
-﻿var STAGES = window.DevFlowCore.STAGES;
+var STAGES = window.DevFlowCore.STAGES;
 var client = window.DevFlowCore.createClient("http://127.0.0.1:8001");
 var artifactRenderer = window.DevFlowArtifactRenderer;
 var clarificationFlow = window.DevFlowClarificationFlow;
@@ -10,7 +10,7 @@ var runErrorMessage = "";
 var abortController = null;
 var pendingRequirement = "";
 var pendingProjectPath = "";
-var lastWheelRotation = 0;
+var liveOutputEventSource = null;
 
 var elements = {
   form: document.querySelector("#requestForm"),
@@ -36,8 +36,14 @@ var elements = {
   mrDraft: document.querySelector("#mrDraft"),
   pipelineStatus: document.querySelector("#pipelineStatus"),
   stageCount: document.querySelector("#stageCount"),
-  stageWheel: document.querySelector("#stageWheel"),
-  stageWheelViewport: document.querySelector("#stageWheelViewport"),
+  stageList: document.querySelector("#stageList"),
+  // Live output panel
+  liveOutput: document.querySelector("#liveOutput"),
+  liveOutputStream: document.querySelector("#liveOutputStream"),
+  liveOutputTitle: document.querySelector("#liveOutputTitle"),
+  liveOutputStage: document.querySelector("#liveOutputStage"),
+  liveOutputEmpty: document.querySelector("#liveOutputEmpty"),
+  // Artifacts
   currentAgent: document.querySelector("#currentAgent"),
   artifactEmpty: document.querySelector("#artifactEmpty"),
   artifactCard: document.querySelector("#artifactCard"),
@@ -72,6 +78,8 @@ var elements = {
   clarificationCancel: document.querySelector("#clarificationCancel"),
   clarificationRecommend: document.querySelector("#clarificationRecommend"),
 };
+
+// ── Pipeline helpers ──
 
 function getCompletedStageIds() {
   if (!pipeline) return new Set();
@@ -172,6 +180,111 @@ function setStatusBadge() {
   elements.pipelineStatus.classList.add("is-running");
 }
 
+// ── Live output panel ──
+
+function showLiveOutput() {
+  elements.liveOutput.classList.remove("hidden");
+  elements.liveOutputEmpty.classList.add("hidden");
+}
+
+function hideLiveOutput() {
+  elements.liveOutput.classList.add("hidden");
+}
+
+function clearLiveOutput() {
+  elements.liveOutputStream.innerHTML = "";
+  elements.liveOutputEmpty.classList.remove("hidden");
+  elements.liveOutputTitle.textContent = "AI 正在工作…";
+  elements.liveOutputStage.textContent = "等待中";
+}
+
+function appendLiveChunk(text) {
+  showLiveOutput();
+  elements.liveOutputEmpty.classList.add("hidden");
+  var span = document.createElement("span");
+  span.className = "stream-chunk";
+  span.textContent = text;
+  elements.liveOutputStream.appendChild(span);
+  elements.liveOutputStream.scrollTop = elements.liveOutputStream.scrollHeight;
+}
+
+function appendSystemMessage(text) {
+  showLiveOutput();
+  elements.liveOutputEmpty.classList.add("hidden");
+  var div = document.createElement("div");
+  div.className = "stream-system";
+  div.textContent = "⚙ " + text;
+  elements.liveOutputStream.appendChild(div);
+  elements.liveOutputStream.scrollTop = elements.liveOutputStream.scrollHeight;
+}
+
+function appendErrorMessage(text) {
+  showLiveOutput();
+  elements.liveOutputEmpty.classList.add("hidden");
+  var div = document.createElement("div");
+  div.className = "stream-error";
+  div.textContent = "✕ " + text;
+  elements.liveOutputStream.appendChild(div);
+  elements.liveOutputStream.scrollTop = elements.liveOutputStream.scrollHeight;
+}
+
+function setLiveOutputStage(stageName) {
+  elements.liveOutputStage.textContent = stageName;
+  elements.liveOutputTitle.textContent = "正在执行：" + stageName;
+}
+
+function disconnectLiveOutput() {
+  if (liveOutputEventSource) {
+    liveOutputEventSource.close();
+    liveOutputEventSource = null;
+  }
+}
+
+function connectLiveOutput(pipelineId) {
+  disconnectLiveOutput();
+  clearLiveOutput();
+  showLiveOutput();
+
+  try {
+    liveOutputEventSource = new EventSource(
+      "http://127.0.0.1:8001/pipelines/" + pipelineId + "/stream-run"
+    );
+
+    liveOutputEventSource.addEventListener("chunk", function (event) {
+      appendLiveChunk(event.data);
+    });
+
+    liveOutputEventSource.addEventListener("system", function (event) {
+      appendSystemMessage(event.data);
+    });
+
+    liveOutputEventSource.addEventListener("stage", function (event) {
+      setLiveOutputStage(event.data);
+    });
+
+    liveOutputEventSource.addEventListener("error", function (event) {
+      if (event.data) {
+        appendErrorMessage(event.data);
+      }
+    });
+
+    liveOutputEventSource.addEventListener("done", function () {
+      appendSystemMessage("当前阶段执行完毕");
+      disconnectLiveOutput();
+    });
+
+    liveOutputEventSource.onerror = function () {
+      // SSE connection failed or ended — that's OK, we poll afterward
+      disconnectLiveOutput();
+    };
+  } catch (_e) {
+    // SSE not available, use polling fallback
+    liveOutputEventSource = null;
+  }
+}
+
+// ── Render functions ──
+
 function renderRunMonitor() {
   elements.runMonitor.classList.toggle("is-running", isRunning);
   elements.runMonitor.classList.toggle("is-review", pipeline && pipeline.status === "waiting_review");
@@ -215,54 +328,33 @@ function renderRunMonitor() {
 
 function renderStages() {
   var completedIds = getCompletedStageIds();
-  var wheelData = window.DevFlowCore.createStageWheelItems(
-    STAGES,
-    pipeline ? pipeline.currentStageId : STAGES[0].id,
-    completedIds
-  );
+  var currentId = pipeline ? pipeline.currentStageId : STAGES[0].id;
+  var isCompleted = pipeline && pipeline.status === "completed";
+  var stateLabels = { complete: "已完成", current: "进行中", pending: "待处理" };
 
-  var items = wheelData.items;
-  var wheelRotation = wheelData.wheelRotation;
-  var radius = wheelData.radius;
-  var stateLabels = { complete: "已完成", current: "当前", pending: "待处理" };
+  elements.stageList.innerHTML = STAGES.map(function (stage, index) {
+    var state = completedIds.has(stage.id)
+      ? "complete"
+      : stage.id === currentId
+        ? "current"
+        : "pending";
+    var stateLabel = stateLabels[state];
 
-  // Animate only if rotation changed
-  if (wheelRotation !== lastWheelRotation) {
-    elements.stageWheel.classList.add("animating");
-    lastWheelRotation = wheelRotation;
-  }
-
-  elements.stageWheel.style.setProperty("--wheel-rotation", wheelRotation + "deg");
-  elements.stageWheel.style.transform = "rotate(" + wheelRotation + "deg)";
-
-  elements.stageWheel.innerHTML = items.map(function (item, index) {
-    var itemAngle = item.angle;
-    var counterAngle = -(itemAngle + wheelRotation);
-    var stateLabel = stateLabels[item.state] || "待处理";
-    var stateClass = "is-" + item.state;
-    if (item.state === "current" && pipeline && pipeline.status !== "completed") {
-      stateClass += " is-current";
+    // If pipeline completed, mark all as complete
+    if (isCompleted && completedIds.has(stage.id)) {
+      state = "complete";
+      stateLabel = "已完成";
     }
 
-    var itemStyle = "--item-angle:" + itemAngle + "deg; transform: translateY(" + (-radius) + "px) rotate(" + itemAngle + "deg);";
-    var innerStyle = "transform: rotate(" + counterAngle + "deg);";
-
     return (
-      '<div class="stage-wheel-item" style="' + itemStyle + '">' +
-        '<div class="stage-wheel-item-inner ' + stateClass + '" style="' + innerStyle + '">' +
-          '<span class="item-index">' + (index + 1) + "</span>" +
-          '<span class="item-name">' + item.name + "</span>" +
-          '<span class="item-agent">' + item.agent + "</span>" +
-          '<span class="item-state">' + stateLabel + "</span>" +
-        "</div>" +
-      "</div>"
+      '<li class="stage-card is-' + state + '">' +
+        '<span class="card-num">' + (index + 1) + "</span>" +
+        '<span class="card-name">' + stage.name + "</span>" +
+        '<span class="card-agent">' + stage.agent + "</span>" +
+        '<span class="card-state">' + stateLabel + "</span>" +
+      "</li>"
     );
   }).join("");
-
-  // Remove animation class after transition completes
-  setTimeout(function () {
-    elements.stageWheel.classList.remove("animating");
-  }, 750);
 
   elements.stageCount.textContent = completedIds.size + " / " + STAGES.length;
 }
@@ -294,6 +386,7 @@ function renderArtifact() {
   elements.artifactContent.innerHTML = artifactRenderer.renderMarkdown(artifact.content);
   renderPrdMap(artifact);
   renderPrototype(artifact);
+  renderMermaidDiagram(artifact);
   renderVisualPlan(artifact.visualPlan);
 }
 
@@ -307,6 +400,54 @@ function renderPrdMap(artifact) {
   elements.prdMap.classList.remove("hidden");
   elements.prdMapTitle.textContent = prdMap.title;
   elements.prdMapFlow.innerHTML = artifactRenderer.renderPrdMap(prdMap);
+}
+
+function renderMermaidDiagram(artifact) {
+  // Remove any existing mermaid preview
+  var existing = document.querySelector("#mermaidPreview");
+  if (existing) existing.remove();
+
+  if (!artifact || artifact.stageId !== "requirement" || !artifact.mermaidCode) return;
+
+  var container = document.createElement("div");
+  container.className = "mermaid-preview";
+  container.id = "mermaidPreview";
+
+  var header = document.createElement("div");
+  header.className = "mermaid-header";
+  header.innerHTML = '<span>PRD 思维导图</span><strong>需求结构可视化</strong>';
+  container.appendChild(header);
+
+  // Try to render Mermaid
+  if (artifact.mermaidSvg) {
+    var img = document.createElement("img");
+    img.className = "mermaid-svg";
+    img.src = artifact.mermaidSvg;
+    img.alt = "PRD 思维导图";
+    container.appendChild(img);
+  } else if (artifact.mermaidCode) {
+    // Show raw mermaid code
+    var pre = document.createElement("pre");
+    pre.className = "mermaid-source";
+    pre.style.display = "block";
+    pre.textContent = artifact.mermaidCode;
+    container.appendChild(pre);
+  }
+
+  // Fallback image
+  if (artifact.prdImageUrl) {
+    var fallbackImg = document.createElement("img");
+    fallbackImg.className = "mermaid-fallback-img";
+    fallbackImg.src = artifact.prdImageUrl;
+    fallbackImg.alt = "PRD 主要内容图示";
+    container.appendChild(fallbackImg);
+  }
+
+  // Insert after PRD map
+  var prdMap = document.querySelector("#prdMap");
+  if (prdMap && !prdMap.classList.contains("hidden")) {
+    prdMap.parentNode.insertBefore(container, prdMap.nextSibling);
+  }
 }
 
 function renderDeliveryPackage() {
@@ -501,6 +642,8 @@ function render() {
   renderControls();
 }
 
+// ── API actions ──
+
 async function checkHealth() {
   try {
     await client.health();
@@ -519,14 +662,20 @@ async function runUntilReviewOrComplete() {
   runningStageName = stage ? stage.name : "";
   render();
 
+  // Try SSE streaming first
+  connectLiveOutput(pipeline.id);
+
   try {
     pipeline = await client.runUntilReview(pipeline.id);
+    appendSystemMessage("阶段执行完成，等待你的确认。");
   } catch (error) {
     runErrorMessage = error.message;
+    appendErrorMessage(error.message);
   } finally {
     isRunning = false;
     abortController = null;
     runningStageName = "";
+    disconnectLiveOutput();
     render();
   }
 }
@@ -590,6 +739,8 @@ async function startPipeline(requirement, projectPath) {
   await runUntilReviewOrComplete();
 }
 
+// ── Event listeners ──
+
 elements.form.addEventListener("submit", async function (event) {
   event.preventDefault();
   var requirement = elements.requirementInput.value.trim();
@@ -619,6 +770,7 @@ elements.stopButton.addEventListener("click", function () {
   }
   isRunning = false;
   runningStageName = "";
+  disconnectLiveOutput();
   render();
 });
 
@@ -682,8 +834,8 @@ elements.resetButton.addEventListener("click", function () {
   runErrorMessage = "";
   pendingRequirement = "";
   pendingProjectPath = "";
-  lastWheelRotation = 0;
-  closeClarificationModal();
+  disconnectLiveOutput();
+  hideLiveOutput();
   if (abortController) {
     abortController.abort();
     abortController = null;

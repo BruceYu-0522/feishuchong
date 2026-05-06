@@ -1,10 +1,18 @@
 from datetime import datetime, timezone
+from typing import AsyncGenerator
 from uuid import uuid4
 
 from fastapi import HTTPException
 
 from backend.code_executor import apply_llm_code_patch, apply_llm_test_patch
-from backend.llm_runner import generate_requirement_prototype, generate_visual_plan, run_llm_agent
+from backend.llm_runner import (
+    generate_prd_image,
+    generate_prd_mermaid,
+    generate_requirement_prototype,
+    generate_visual_plan,
+    run_llm_agent,
+    stream_llm_agent,
+)
 from backend.schemas import Artifact, Pipeline, ReviewRecord, ReviewRequest, Stage
 from backend.skills import get_skill_info
 
@@ -67,6 +75,8 @@ def run_next_stage(pipeline: Pipeline) -> Pipeline:
     workspace_path = None
     visual_plan = None
     prototype_html = None
+    mermaid_code = None
+    prd_image_url = None
     content = ""
     model = ""
 
@@ -120,6 +130,15 @@ def run_next_stage(pipeline: Pipeline) -> Pipeline:
 
         if stage.id == "requirement":
             prototype_html = generate_requirement_prototype(pipeline.requirement, content)
+
+            # Generate Mermaid mindmap from PRD
+            mermaid_result = generate_prd_mermaid(pipeline.requirement, content)
+            if mermaid_result:
+                mermaid_code = mermaid_result.get("code")
+
+            # If Mermaid failed, try image generation as fallback
+            if not mermaid_code:
+                prd_image_url = generate_prd_image(pipeline.requirement, content)
         elif stage.id == "design":
             visual_plan = generate_visual_plan(pipeline.requirement, content)
 
@@ -135,6 +154,8 @@ def run_next_stage(pipeline: Pipeline) -> Pipeline:
         workspacePath=workspace_path,
         visualPlan=visual_plan,
         prototypeHtml=prototype_html,
+        mermaidCode=mermaid_code,
+        prdImageUrl=prd_image_url,
     )
 
     if stage.approvalRequired:
@@ -186,3 +207,98 @@ def submit_review(pipeline: Pipeline, request: ReviewRequest) -> Pipeline:
     pipeline.currentStageId = pipeline.stages[stage_index(stage.id) + 1].id
     pipeline.status = "ready"
     return pipeline
+
+# ── SSE Streaming Pipeline Runner ──
+
+async def run_until_review_with_stream(pipeline):
+    """Run pipeline stages with SSE streaming output. Yields SSE-formatted strings."""
+    while pipeline.status == "ready":
+        stage = current_stage(pipeline)
+
+        if stage.id in ("code", "test"):
+            yield "event: stage\ndata: " + stage.name + "\n\n"
+            yield "event: system\ndata: 正在执行 " + stage.name + "（非流式）…\n\n"
+            try:
+                run_next_stage(pipeline)
+            except HTTPException as exc:
+                yield "event: error\ndata: " + str(exc.detail) + "\n\n"
+                return
+            yield "event: system\ndata: " + stage.name + " 执行完成\n\n"
+        else:
+            full_content = ""
+            result_model = ""
+            async for sse_event in stream_llm_agent(stage, pipeline):
+                yield sse_event
+                if sse_event.startswith("event: result\ndata: "):
+                    import json
+                    try:
+                        data_str = sse_event[len("event: result\ndata: "):].strip()
+                        result = json.loads(data_str)
+                        full_content = result.get("content", "")
+                        result_model = result.get("model", "")
+                    except (json.JSONDecodeError, KeyError):
+                        pass
+
+            if not full_content:
+                yield "event: error\ndata: LLM 返回了空内容\n\n"
+                return
+
+            prototype_html = None
+            visual_plan = None
+            mermaid_code = None
+            prd_image_url = None
+
+            if stage.id == "requirement":
+                yield "event: system\ndata: 渲染 Markdown 格式…\n\n"
+                prototype_html = generate_requirement_prototype(pipeline.requirement, full_content)
+                if prototype_html:
+                    yield "event: system\ndata: 原型 HTML 生成完成\n\n"
+                yield "event: system\ndata: 正在生成 PRD 思维导图…\n\n"
+                mermaid_result = generate_prd_mermaid(pipeline.requirement, full_content)
+                if mermaid_result:
+                    mermaid_code = mermaid_result.get("code")
+                    yield "event: system\ndata: 思维导图生成完成\n\n"
+                else:
+                    yield "event: system\ndata: 思维导图生成失败，尝试 AI 生图…\n\n"
+                    prd_image_url = generate_prd_image(pipeline.requirement, full_content)
+                    if prd_image_url:
+                        yield "event: system\ndata: PRD 图示生成完成\n\n"
+                    else:
+                        yield "event: system\ndata: PRD 图示生成失败，跳过\n\n"
+            elif stage.id == "design":
+                yield "event: system\ndata: 正在生成方案蓝图…\n\n"
+                visual_plan = generate_visual_plan(pipeline.requirement, full_content)
+                if visual_plan:
+                    yield "event: system\ndata: 方案蓝图生成完成\n\n"
+
+            pipeline.artifacts[stage.id] = Artifact(
+                stageId=stage.id,
+                stageName=stage.name,
+                agent=stage.agent,
+                skill=stage.skill,
+                content=full_content,
+                createdAt=now_iso(),
+                model=result_model or "unknown",
+                changedFiles=[],
+                workspacePath=None,
+                visualPlan=visual_plan,
+                prototypeHtml=prototype_html,
+                mermaidCode=mermaid_code,
+                prdImageUrl=prd_image_url,
+            )
+
+        if stage.approvalRequired:
+            pipeline.status = "waiting_review"
+            yield "event: system\ndata: " + stage.name + " 完成，等待你的确认\n\n"
+            yield "event: done\ndata: \n\n"
+            return
+
+        if stage.id == "delivery":
+            pipeline.status = "completed"
+            yield "event: system\ndata: 全部阶段完成！\n\n"
+            yield "event: done\ndata: \n\n"
+            return
+
+        pipeline.currentStageId = pipeline.stages[stage_index(stage.id) + 1].id
+
+    yield "event: done\ndata: \n\n"

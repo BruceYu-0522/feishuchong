@@ -6,11 +6,17 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.code_executor import RUNS_DIR
-from backend.pipeline_engine import create_pipeline, run_next_stage, run_until_review, submit_review
+from backend.pipeline_engine import (
+    create_pipeline,
+    run_next_stage,
+    run_until_review,
+    run_until_review_with_stream,
+    submit_review,
+)
 from backend.schemas import CreatePipelineRequest, Pipeline, ReviewRequest
 from backend.storage import store
 
@@ -55,6 +61,28 @@ def run_next_endpoint(pipeline_id: str) -> Pipeline:
 def run_until_review_endpoint(pipeline_id: str) -> Pipeline:
     pipeline = store.get(pipeline_id)
     return store.save(run_until_review(pipeline))
+
+
+@app.get("/pipelines/{pipeline_id}/stream-run")
+async def stream_run_endpoint(pipeline_id: str):
+    """SSE endpoint that streams LLM output and system operations in real-time."""
+    pipeline = store.get(pipeline_id)
+
+    async def event_stream():
+        async for event in run_until_review_with_stream(pipeline):
+            yield event
+        # Save pipeline state after streaming
+        store.save(pipeline)
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.post("/pipelines/{pipeline_id}/review", response_model=Pipeline)

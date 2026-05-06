@@ -30,6 +30,9 @@ class Artifact(BaseModel):
     pencilSketchPath: Optional[str] = None
     visualPlan: Optional[dict] = None
     prototypeHtml: Optional[str] = None
+    mermaidCode: Optional[str] = None
+    mermaidSvg: Optional[str] = None
+    prdImageUrl: Optional[str] = None
 
 
 class ReviewRecord(BaseModel):
