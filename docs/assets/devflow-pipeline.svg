@@ -1,0 +1,75 @@
+<svg width="1200" height="430" viewBox="0 0 1200 430" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="1200" y2="430" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8FAFC"/>
+      <stop offset="1" stop-color="#E8F3FF"/>
+    </linearGradient>
+    <style>
+      .title{font:700 32px Arial,'Microsoft YaHei',sans-serif;fill:#102033}
+      .sub{font:400 16px Arial,'Microsoft YaHei',sans-serif;fill:#52657A}
+      .stage{font:700 18px Arial,'Microsoft YaHei',sans-serif;fill:#0F172A}
+      .agent{font:400 14px Arial,'Microsoft YaHei',sans-serif;fill:#475569}
+      .note{font:700 13px Arial,'Microsoft YaHei',sans-serif;fill:#0E7490}
+      .small{font:400 13px Arial,'Microsoft YaHei',sans-serif;fill:#64748B}
+    </style>
+  </defs>
+  <rect width="1200" height="430" rx="26" fill="url(#bg2)"/>
+  <text x="56" y="66" class="title">从一句需求到可交付代码</text>
+  <text x="56" y="98" class="sub">每个阶段由专属 Agent 产出结果，人工在检查点做继续或回退决策。</text>
+
+  <g transform="translate(56 155)">
+    <g>
+      <rect width="156" height="122" rx="16" fill="#FFFFFF" stroke="#BED4EA"/>
+      <circle cx="30" cy="30" r="14" fill="#DBEAFE"/>
+      <text x="55" y="35" class="stage">需求分析</text>
+      <text x="22" y="72" class="agent">结构化 PRD</text>
+      <text x="22" y="96" class="small">验收标准 / 原型</text>
+    </g>
+    <path d="M166 61 H205" stroke="#38BDF8" stroke-width="4" stroke-linecap="round"/>
+    <polygon points="210,61 196,53 196,69" fill="#38BDF8"/>
+
+    <g transform="translate(220 0)">
+      <rect width="156" height="122" rx="16" fill="#FFFFFF" stroke="#BED4EA"/>
+      <circle cx="30" cy="30" r="14" fill="#E0F2FE"/>
+      <text x="55" y="35" class="stage">方案设计</text>
+      <text x="22" y="72" class="agent">技术方案</text>
+      <text x="22" y="96" class="small">影响范围 / 蓝图</text>
+    </g>
+    <path d="M386 61 H425" stroke="#38BDF8" stroke-width="4" stroke-linecap="round"/>
+    <polygon points="430,61 416,53 416,69" fill="#38BDF8"/>
+
+    <g transform="translate(440 0)">
+      <rect width="156" height="122" rx="16" fill="#FFFFFF" stroke="#BED4EA"/>
+      <circle cx="30" cy="30" r="14" fill="#DCFCE7"/>
+      <text x="55" y="35" class="stage">代码生成</text>
+      <text x="22" y="72" class="agent">修改目标工程</text>
+      <text x="22" y="96" class="small">变更文件 / Git 提交</text>
+    </g>
+    <path d="M606 61 H645" stroke="#38BDF8" stroke-width="4" stroke-linecap="round"/>
+    <polygon points="650,61 636,53 636,69" fill="#38BDF8"/>
+
+    <g transform="translate(660 0)">
+      <rect width="156" height="122" rx="16" fill="#FFFFFF" stroke="#BED4EA"/>
+      <circle cx="30" cy="30" r="14" fill="#FEF3C7"/>
+      <text x="55" y="35" class="stage">测试生成</text>
+      <text x="22" y="72" class="agent">单测 / 集成测试</text>
+      <text x="22" y="96" class="small">运行说明 / 覆盖点</text>
+    </g>
+    <path d="M826 61 H865" stroke="#38BDF8" stroke-width="4" stroke-linecap="round"/>
+    <polygon points="870,61 856,53 856,69" fill="#38BDF8"/>
+
+    <g transform="translate(880 0)">
+      <rect width="156" height="122" rx="16" fill="#FFFFFF" stroke="#BED4EA"/>
+      <circle cx="30" cy="30" r="14" fill="#FCE7F3"/>
+      <text x="55" y="35" class="stage">代码评审</text>
+      <text x="22" y="72" class="agent">正确性 / 安全 / 规范</text>
+      <text x="22" y="96" class="small">自动回归重试</text>
+    </g>
+  </g>
+
+  <g transform="translate(194 324)">
+    <rect width="812" height="54" rx="15" fill="#ECFEFF" stroke="#A5F3FC"/>
+    <text x="28" y="34" class="note">Human-in-the-Loop 检查点：</text>
+    <text x="202" y="34" class="small">任一阶段产物进入等待审批；Approve 继续，Reject 携带原因回退重做，评审阶段最多自动回归 3 次。</text>
+  </g>
+</svg>
