@@ -1,0 +1,15 @@
+version: "3.9"
+
+services:
+  devflow:
+    build: .
+    container_name: devflow-engine
+    ports:
+      - "8001:8001"
+    environment:
+      - DEVFLOW_LLM_ENABLED=${DEVFLOW_LLM_ENABLED:-true}
+      - DEVFLOW_LLM_API_KEY=${DEVFLOW_LLM_API_KEY:-}
+      - DEVFLOW_LLM_BASE_URL=${DEVFLOW_LLM_BASE_URL:-https://api.lingyaai.cn}
+    volumes:
+      - ./devflow-runs:/app/devflow-runs
+    restart: unless-stopped

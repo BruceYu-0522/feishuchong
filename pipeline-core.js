@@ -82,10 +82,15 @@
         headers = Object.assign(headers, options.headers);
       }
 
+      var url = apiBase + path;
+      console.log("[pipeline-core request] " + (options ? options.method || "GET" : "GET") + " " + url);
+
       var response;
       try {
-        response = await fetch(apiBase + path, Object.assign({}, options, { headers: headers }));
+        response = await fetch(url, Object.assign({}, options, { headers: headers }));
+        console.log("[pipeline-core request] response status:", response.status);
       } catch (_err) {
+        console.error("[pipeline-core request] fetch failed:", _err.message || _err);
         throw new Error(
           "API 服务未连接。请先启动后端：\n" +
           "  pip install -r requirements.txt\n" +
@@ -116,12 +121,13 @@
         return request("/health");
       },
 
-      createPipeline: function (requirement, projectPath) {
+      createPipeline: function (requirement, projectPath, template) {
         return request("/pipelines", {
           method: "POST",
           body: JSON.stringify({
             requirement: requirement,
             projectPath: projectPath || undefined,
+            template: template || "feature",
           }),
         });
       },

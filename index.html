@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DevFlow Engine</title>
-  <link rel="stylesheet" href="styles.css?v=horizontal-row-4">
+  <link rel="stylesheet" href="styles.css?v=soft-bento-17">
 </head>
 <body>
   <main class="app-shell" id="top">
@@ -22,61 +22,212 @@
       </div>
     </header>
 
-    <section class="command-center" id="runner" aria-labelledby="runnerTitle">
-      <div class="setup-hint" id="setupHint">
-        <span>⚡ 首次使用请先启动后端并配置 LLM API Key，详见 README.md</span>
-      </div>
-      <div class="intro-copy">
-        <p class="eyebrow">AI-Driven Pipeline</p>
-        <h1 id="runnerTitle">输入需求，AI Agent 驱动完整研发流程</h1>
-      </div>
-
+    <section class="input-card tile" id="runner" aria-labelledby="runnerTitle">
+      <h1 id="runnerTitle" class="input-title">输入需求，AI Agent 驱动完整研发流程</h1>
       <form class="request-command" id="requestForm">
-        <span class="command-icon">⌘</span>
-        <textarea id="requirementInput" rows="1" placeholder="例如：给任务管理系统增加按优先级筛选任务的功能"></textarea>
-        <button class="primary-button" type="submit">开始生成</button>
-        <button class="pause-button" id="stopButton" type="button">暂停</button>
+        <div class="wave-input">
+  <textarea id="requirementInput" rows="1" required></textarea>
+  <label for="requirementInput"><span>请</span><span>输</span><span>入</span><span>您</span><span>的</span><span>需</span><span>求</span></label>
+</div>
+        <button class="glow-button" type="submit">
+  <div class="glow-button__border"></div>
+  <span class="glow-button__text">开始生成</span>
+</button>
       </form>
-      <label class="project-path-field" for="projectPathInput">
-        <span>项目文件夹路径（可选）</span>
-        <input id="projectPathInput" type="text" placeholder="例如：C:\Users\22073\Desktop\my-app">
-      </label>
+
+      <div class="template-selector">
+        <span class="template-label">流程模板</span>
+        <select id="templateSelector">
+          <option value="feature">新功能（完整流程）</option>
+          <option value="bugfix">Bug修复（跳过需求/方案）</option>
+          <option value="refactor">重构（跳过需求分析）</option>
+        </select>
+      </div>
+
+
     </section>
 
-    <section class="next-strip" aria-live="polite">
-      <div>
-        <span>当前动作</span>
-        <strong id="nextStepTitle">先输入需求并开始</strong>
-        <p id="nextStepHint">点击“开始生成”，系统会先把你的需求整理成可执行的研发任务。</p>
+    <section class="stage-row-card tile" aria-labelledby="stageTitle">
+      <div class="flow-heading">
+        <div>
+          <p class="eyebrow">流程总览</p>
+          <h2 id="stageTitle">6 步研发流程</h2>
+        </div>
+        <span class="mini-badge" id="stageCount">0 / 6</span>
       </div>
-      <div class="action-buttons">
-        <button class="primary-button" id="runButton" type="button" disabled>自动运行</button>
-        <button class="secondary-button hidden" id="autoRunButton" type="button" disabled>自动到确认点</button>
+      <ol class="stage-row" id="stageList"></ol>
+    </section>
+
+    <div class="main-grid">
+      <div class="main-left">
+        <section class="artifact-panel tile" id="artifacts" aria-labelledby="artifactTitle">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">当前产物</p>
+              <h2 id="artifactTitle">系统刚刚产出了什么</h2>
+            </div>
+            <span class="mini-badge" id="currentAgent">等待开始</span>
+          </div>
+
+          <div class="artifact-empty" id="artifactEmpty">
+            <strong>还没有结果</strong>
+            <p>开始后，这里会显示每一步的产物：需求整理、方案蓝图、代码计划、测试和交付总结。</p>
+          </div>
+
+          <article class="artifact-card hidden" id="artifactCard">
+            <div class="artifact-sections" id="artifactSections"></div>
+          </article>
+
+          <!-- Hidden templates for stage-specific components -->
+          <div class="hidden">
+            <section id="prdMap" aria-label="PRD 图谱">
+              <div class="visual-plan-header">
+                <strong id="prdMapTitle">需求结构图</strong>
+                <p id="prdMapSummary"></p>
+              </div>
+              <div class="prd-map-flow" id="prdMapFlow"></div>
+            </section>
+            <section id="prototypePreview" aria-label="需求原型预览">
+              <div class="visual-plan-header">
+                <div>
+                  <strong id="prototypeTitle">低保真原型预览</strong>
+                  <p id="prototypeDesc">AI 产品经理根据需求分析自动生成的原型页面</p>
+                </div>
+                <button class="ghost-button expand-preview-btn" id="prototypeExpandBtn" type="button" title="全屏预览">⛶ 全屏</button>
+              </div>
+              <div class="product-preview-frame" id="prototypeFrameWrap">
+                <iframe id="prototypeFrame" title="需求原型预览" sandbox="allow-scripts allow-same-origin allow-forms"></iframe>
+              </div>
+            </section>
+            <section id="visualPlan" aria-label="方案设计蓝图">
+              <div class="visual-plan-header">
+                <strong id="visualPlanTitle">方案蓝图</strong>
+                <p id="visualPlanSummary"></p>
+              </div>
+              <div class="blueprint-flow" id="blueprintFlow"></div>
+              <div class="blueprint-risks" id="blueprintRisks"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="workspace-panel tile" id="workspace" aria-labelledby="workspaceTitle">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">工作区</p>
+              <h2 id="workspaceTitle">生成文件</h2>
+            </div>
+            <span class="mini-badge" id="workspaceFileCount">0 个文件</span>
+          </div>
+          <div class="workspace-file-list" id="workspaceFileList">
+            <div class="workspace-empty" id="workspaceEmpty">
+              <strong>暂无文件</strong>
+              <p>Pipeline 运行后，所有阶段的产物会自动保存到这里，方便查看和导出。</p>
+            </div>
+          </div>
+          <div class="workspace-git hidden" id="workspaceGit">
+            <div class="git-branch" id="gitBranch"></div>
+            <div class="git-commit" id="gitCommit"></div>
+          </div>
+          <div class="code-search hidden" id="codeSearch">
+            <input type="text" class="code-search-input" id="codeSearchInput" placeholder="搜索代码符号…（如函数名、CSS类、HTML元素）">
+            <div class="code-search-results hidden" id="codeSearchResults"></div>
+          </div>
+          <div class="workspace-footer" id="workspaceFooter">
+            <span id="workspacePath"></span>
+            <a class="export-button" id="exportWorkspaceLink" href="#" download>
+  <span class="export-button__text">导出 ZIP</span>
+  <span class="export-button__icon">
+    <svg class="export-button__svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="7 10 12 15 17 10"/>
+      <line x1="12" y1="15" x2="12" y2="3"/>
+    </svg>
+  </span>
+</a>
+          </div>
+        </section>
+      </div>
+
+      <div class="main-right">
+        <section class="live-output-terminal tile" id="liveOutput" aria-live="polite">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">实时输出</p>
+              <h2 id="liveOutputTitle">AI 正在工作…</h2>
+            </div>
+            <span class="mini-badge" id="liveOutputStage">等待中</span>
+          </div>
+          <div class="live-output-stream" id="liveOutputStream">
+            <div class="live-output-empty" id="liveOutputEmpty">
+              <strong>暂无实时输出</strong>
+              <p>开始执行后，这里会实时显示 AI 模型的输出内容和系统操作。</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="obs-panel tile hidden" id="obsPanel" aria-labelledby="obsPanelTitle">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">可观测性</p>
+              <h2 id="obsPanelTitle">运行统计</h2>
+            </div>
+            <div class="obs-summary-row" id="obsSummary"></div>
+          </div>
+          <div class="obs-cards" id="obsCards"></div>
+        </section>
+
+        <section class="review-panel tile" id="review" aria-labelledby="reviewTitle">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">人工确认</p>
+              <h2 id="reviewTitle">人工确认</h2>
+            </div>
+            <span class="mini-badge" id="reviewState">暂时不用确认</span>
+          </div>
+
+          <div class="review-empty" id="reviewEmpty">
+            <strong>现在不用你审批</strong>
+            <p>每个阶段产出后都会停下来等你确认，通过后才会进入下一环节。</p>
+          </div>
+
+          <div class="review-controls hidden" id="reviewControls">
+            <p class="review-tip">看完上面的产物后，选择是否让流程继续。打回会让系统带着你的原因重新生成这一阶段。</p>
+            <label for="rejectReason">如果要打回，写一句原因</label>
+            <textarea id="rejectReason" rows="3" placeholder="例如：缺少空状态处理"></textarea>
+            <div class="review-actions">
+              <button class="approve-button" id="approveButton" type="button">通过，继续下一步</button>
+              <button class="reject-button" id="rejectButton" type="button">打回，重新生成</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- 产品预览：代码生成后立刻展示，在交付之前 -->
+    <section class="product-preview-section tile hidden" id="productPreviewSection" aria-labelledby="productPreviewTitle">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">产品预览</p>
+          <h2 id="productPreviewTitle">生成的页面效果</h2>
+        </div>
+        <div class="delivery-preview-actions">
+          <button class="ghost-button expand-preview-btn" id="productExpandBtn" type="button" title="全屏预览">⛶ 全屏</button>
+          <a class="secondary-button" id="productPreviewLink" href="#" target="_blank" rel="noreferrer">在新窗口打开</a>
+        </div>
+      </div>
+      <div class="product-preview-frame" id="productFrameWrap">
+        <iframe id="productPreviewFrame" title="产品预览"></iframe>
       </div>
     </section>
 
-    <section class="run-monitor" id="runMonitor" aria-live="polite">
-      <div class="run-dot" id="runDot"></div>
-      <div>
-        <span>运行状态</span>
-        <strong id="runMonitorTitle">尚未开始</strong>
-        <p id="runMonitorDetail">点击“开始生成”后，这里会实时显示当前正在执行的阶段。</p>
-      </div>
-    </section>
-
-    <section class="delivery-package hidden" id="deliveryPackage" aria-labelledby="deliveryTitle">
+    <!-- 交付包：流程完成后展示 -->
+    <section class="delivery-package tile hidden" id="deliveryPackage" aria-labelledby="deliveryTitle">
       <div class="section-heading">
         <div>
           <p class="eyebrow">最终成果</p>
-          <h2 id="deliveryTitle">产品预览与交付包</h2>
+          <h2 id="deliveryTitle">交付包</h2>
         </div>
-        <a class="secondary-button" id="productPreviewLink" href="#" target="_blank" rel="noreferrer">打开产品</a>
       </div>
-
-      <div class="product-preview-frame">
-        <iframe id="productPreviewFrame" title="最终产品预览"></iframe>
-      </div>
-
       <div class="delivery-grid">
         <article>
           <span>产品变化</span>
@@ -93,169 +244,58 @@
           <ul id="deliveryFiles"></ul>
         </article>
       </div>
-
-      <label class="mr-draft" for="mrDraft">
-        <span>MR 描述草稿</span>
-        <textarea id="mrDraft" readonly rows="8"></textarea>
-      </label>
-    </section>
-
-    <section class="flow-board" aria-labelledby="stageTitle">
-      <div class="flow-heading">
-        <div>
-          <p class="eyebrow">流程总览</p>
-          <h2 id="stageTitle">6 步研发流程</h2>
-        </div>
-        <span class="mini-badge" id="stageCount">0 / 6</span>
-      </div>
-      <ol class="stage-row" id="stageList"></ol>
-    </section>
-
-    <section class="live-output-panel hidden" id="liveOutput" aria-live="polite">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">实时输出</p>
-          <h2 id="liveOutputTitle">AI 正在工作…</h2>
-        </div>
-        <span class="mini-badge" id="liveOutputStage">等待中</span>
-      </div>
-      <div class="live-output-stream" id="liveOutputStream">
-        <div class="live-output-empty" id="liveOutputEmpty">
-          <strong>暂无实时输出</strong>
-          <p>开始执行后，这里会实时显示 AI 模型的输出内容和系统操作。</p>
-        </div>
-      </div>
-    </section>
-
-    <section class="workbench-grid">
-      <section class="artifact-panel" id="artifacts" aria-labelledby="artifactTitle">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">当前产物</p>
-            <h2 id="artifactTitle">系统刚刚产出了什么</h2>
-          </div>
-          <span class="mini-badge" id="currentAgent">等待开始</span>
-        </div>
-
-        <div class="artifact-empty" id="artifactEmpty">
-          <strong>还没有结果</strong>
-          <p>开始后，这里会显示每一步的产物：需求整理、方案蓝图、代码计划、测试和交付总结。</p>
-        </div>
-
-        <article class="artifact-card hidden" id="artifactCard">
-          <div class="artifact-meta">
-            <span id="artifactStage">阶段</span>
-            <span id="artifactTime">时间</span>
-          </div>
-          <section class="prd-map hidden" id="prdMap" aria-label="PRD 图谱">
-            <div class="visual-plan-header">
-              <span>PRD 图谱</span>
-              <strong id="prdMapTitle">需求结构图</strong>
-              <p id="prdMapSummary"></p>
-            </div>
-            <div class="prd-map-flow" id="prdMapFlow"></div>
-          </section>
-          <div class="markdown-document" id="artifactContent"></div>
-        </article>
-
-        <section class="prototype-preview hidden" id="prototypePreview" aria-label="需求原型预览">
-          <div class="visual-plan-header">
-            <span>需求原型</span>
-            <strong id="prototypeTitle">低保真原型预览</strong>
-            <p id="prototypeDesc">AI 产品经理根据需求分析自动生成的原型页面，帮助你直观理解需求</p>
-          </div>
-          <div class="product-preview-frame">
-            <iframe id="prototypeFrame" title="需求原型预览" sandbox="allow-scripts"></iframe>
-          </div>
-        </section>
-
-        <section class="visual-plan hidden" id="visualPlan" aria-label="方案设计蓝图">
-          <div class="visual-plan-header">
-            <span>方案蓝图</span>
-            <strong id="visualPlanTitle">方案蓝图</strong>
-            <p id="visualPlanSummary"></p>
-          </div>
-          <div class="blueprint-flow" id="blueprintFlow"></div>
-          <figure class="pencil-preview">
-            <img id="pencilSketchImage" src="docs/assets/pencil-blueprint.svg" alt="Pencil 草图预览">
-          </figure>
-          <div class="blueprint-risks" id="blueprintRisks"></div>
-          <a class="pencil-link hidden" id="pencilSketchLink" href="#" target="_blank" rel="noreferrer">
-            打开 Pencil 草图文件
-          </a>
-        </section>
-      </section>
-
-      <section class="review-panel hidden" id="review" aria-labelledby="reviewTitle">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">人工确认</p>
-            <h2 id="reviewTitle">人工确认</h2>
-          </div>
-          <span class="mini-badge" id="reviewState">暂时不用确认</span>
-        </div>
-
-        <div class="review-empty" id="reviewEmpty">
-          <strong>现在不用你审批</strong>
-          <p>每个阶段产出后都会停下来等你确认，通过后才会进入下一环节。</p>
-        </div>
-
-        <div class="review-controls hidden" id="reviewControls">
-          <p class="review-tip">看完上面的产物后，选择是否让流程继续。打回会让系统带着你的原因重新生成这一阶段。</p>
-          <label for="rejectReason">如果要打回，写一句原因</label>
-          <textarea id="rejectReason" rows="3" placeholder="例如：缺少空状态处理"></textarea>
-          <div class="review-actions">
-            <button class="approve-button" id="approveButton" type="button">通过，继续下一步</button>
-            <button class="reject-button" id="rejectButton" type="button">打回，重新生成</button>
-          </div>
-        </div>
-      </section>
-    </section>
-
-    <section class="workspace-panel hidden" id="workspace" aria-labelledby="workspaceTitle">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">工作区</p>
-          <h2 id="workspaceTitle">生成文件</h2>
-        </div>
-        <span class="mini-badge" id="workspaceFileCount">0 个文件</span>
-      </div>
-      <div class="workspace-file-list" id="workspaceFileList">
-        <div class="workspace-empty" id="workspaceEmpty">
-          <strong>暂无文件</strong>
-          <p>Pipeline 运行后，所有阶段的产物会自动保存到这里，方便查看和导出。</p>
-        </div>
-      </div>
-      <div class="workspace-footer" id="workspaceFooter">
-        <span id="workspacePath"></span>
-        <a class="secondary-button" id="exportWorkspaceLink" href="#" download>导出 ZIP</a>
-      </div>
     </section>
   </main>
+
+  <div class="hidden">
+    <div id="setupHint">
+      <span>⚡ 首次使用请先启动后端并配置 LLM API Key，详见 README.md</span>
+    </div>
+    <span id="nextStepTitle"></span>
+    <span id="nextStepHint"></span>
+    <div id="runMonitor">
+      <div id="runDot"></div>
+      <span id="runMonitorTitle"></span>
+      <span id="runMonitorDetail"></span>
+    </div>
+    <button id="stopButton" type="button">暂停</button>
+    <button id="autoRunButton" type="button">自动到确认点</button>
+    <textarea id="mrDraft" readonly></textarea>
+    <img id="pencilSketchImage" src="" alt="">
+    <a id="pencilSketchLink" href="#"></a>
+  </div>
 
   <div class="clarification-modal hidden" id="clarificationModal" role="dialog" aria-modal="true" aria-labelledby="clarificationTitle">
     <form class="clarification-dialog" id="clarificationForm">
       <div class="clarification-header">
-        <span>需求澄清</span>
+        <span>需求澄清 · <span id="clarificationProgress">1 / 4</span></span>
         <strong id="clarificationTitle">先回答几个关键问题</strong>
-        <p>这些回答会和你的原始需求一起交给需求分析 Agent，避免它自己猜。</p>
+        <p id="clarificationSubtitle">一次只问一个问题，回答后进入下一题。</p>
       </div>
       <div class="clarification-original">
         <span>原始需求</span>
         <p id="clarificationRequirement"></p>
       </div>
-      <div class="clarification-questions" id="clarificationQuestions"></div>
+      <div class="clarification-step" id="clarificationStep">
+        <span id="clarificationStepLabel">目标用户</span>
+        <strong id="clarificationStepQuestion"></strong>
+        <small id="clarificationStepHint"></small>
+        <textarea id="clarificationStepAnswer" rows="3"></textarea>
+      </div>
+      <div class="clarification-dots" id="clarificationDots"></div>
       <div class="clarification-actions">
         <button class="ghost-button" id="clarificationCancel" type="button">先不生成</button>
         <button class="secondary-button" id="clarificationRecommend" type="button">使用推荐回答</button>
-        <button class="primary-button" type="submit">提交回答并生成 PRD</button>
+        <button class="ghost-button hidden" id="clarificationPrev" type="button">上一题</button>
+        <button class="primary-button" id="clarificationNext" type="button">下一题</button>
       </div>
+      <div class="hidden" id="clarificationQuestions"></div>
     </form>
   </div>
 
-  <script src="pipeline-core.js?v=horizontal-row-4"></script>
-  <script src="clarification-flow.js?v=horizontal-row-4"></script>
-  <script src="artifact-renderer.js?v=horizontal-row-4"></script>
-  <script src="script.js?v=horizontal-row-4"></script>
+  <script src="pipeline-core.js?v=soft-bento-17"></script>
+  <script src="clarification-flow.js?v=soft-bento-17"></script>
+  <script src="artifact-renderer.js?v=soft-bento-17"></script>
+  <script src="script.js?v=soft-bento-17"></script>
 </body>
 </html>

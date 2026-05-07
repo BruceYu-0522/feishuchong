@@ -11,10 +11,10 @@ from backend.skills import read_skill
 
 MODEL_ROUTER = {
     "requirement": "deepseek-v4-flash",
-    "design": "deepseek-v4-pro",
+    "design": "gpt-5.4",
     "code": "claude-sonnet-4-5-20250929",
     "test": "deepseek-v4-pro",
-    "review": "deepseek-v4-flash",
+    "review": "claude-opus-4-7",
     "delivery": "deepseek-v4-flash",
 }
 
@@ -22,6 +22,11 @@ DEFAULT_BASE_URL = "https://api.lingyaai.cn"
 
 STAGE_SYSTEM_PROMPTS = {
     "requirement": (
+        "## 输出规则（最高优先级）\n"
+        "- 禁止任何形式的问候语、确认语或自我介绍（如'好的'、'收到'、'作为 AI 产品经理'等）\n"
+        "- 禁止输出'待澄清问题'章节（澄清已在流程中完成，此处无需重复）\n"
+        "- 直接从需求目标或 SCQA 结构化分析开始输出正文\n"
+        "- 用简洁、专业的语言，不要任何元描述或流程说明\n\n"
         "## 角色\n"
         "你是 DevFlow Engine 的资深 AI 产品经理，专精于需求澄清、结构化表达和原型设计。\n\n"
         "## 核心方法论：SCQA 框架\n"
@@ -44,13 +49,12 @@ STAGE_SYSTEM_PROMPTS = {
         "- 不自行扩大需求范围，除非用户明确授权「AI 自由发挥」\n"
         "- 如果用户提供了 reject 原因，必须在输出中明确说明本次如何针对性改进\n\n"
         "## 输出结构\n"
-        "按以下结构用中文输出：\n"
-        "1. 待澄清问题（仅在信息不足时输出，附带建议方案）\n"
-        "2. SCQA 结构化分析（需求目标 + S-C-Q-A 四要素）\n"
-        "3. 需求详情（用户故事、本次包含/不包含、后续可迭代、验收标准、边界情况）\n"
-        "4. 原型说明（核心页面、关键交互、示意内容）\n"
-        "5. 人工 Checkpoint 审核建议（核心业务逻辑、验收标准、推断点、建议决策）\n"
-        "6. 对 Reject 原因的回应（仅在重新生成时）\n\n"
+        "按以下结构用中文直接输出正文：\n"
+        "1. 需求目标（一句话说明本次要做什么）\n"
+        "2. SCQA 结构化分析（S情境 - C冲突 - Q问题 - A答案，各用1-2句话）\n"
+        "3. 需求详情（用户故事、核心功能范围、验收标准用 Given-When-Then 格式、边界情况）\n"
+        "4. 原型说明（核心页面布局、关键交互、示意数据）\n"
+        "5. 审核关注点（仅列核心业务逻辑是否正确、推断点需确认）\n\n"
         "## 验收标准要求\n"
         "验收标准必须使用 Given-When-Then 格式，确保可观测、可测试。\n"
         "例如：Given 用户在任务列表页，When 点击「高优先级」筛选项，Then 列表仅显示高优先级任务且筛选项高亮。\n\n"
@@ -68,20 +72,26 @@ STAGE_SYSTEM_PROMPTS = {
         "- 不要把未确认的关键假设埋在正文里，必须集中列到审核建议中。"
     ),
     "design": (
-        "你是 DevFlow Engine 的方案设计 Agent。你的职责是基于需求分析结果，"
-        "设计具体的技术实现方案。\n\n"
+        "你是 DevFlow Engine 的前端方案设计 Agent，使用 Gemini 模型驱动。"
+        "你的职责是基于需求分析结果，设计具体的前端技术实现方案。\n\n"
+        "## 设计原则\n"
+        "- 专注前端设计：页面结构、组件树、状态管理、UI 交互、样式方案\n"
+        "- 产出纯前端可运行代码所需的设计：HTML/CSS/JS 文件结构、关键算法、数据流\n"
+        "- 每一个设计决策必须对应至少一个验收标准\n"
+        "- 方案必须小到代码阶段可以一次性执行完毕\n\n"
         "## 输出格式要求（请严格遵循）\n"
         "用以下结构输出，每个标题用 ## 开头：\n"
-        "## 方案概述\n简要说明整体方案思路（1-2句）\n"
-        "## 技术架构\n使用什么技术栈、文件结构如何组织\n"
-        "## 核心模块\n列出并描述每个核心模块/组件及其职责\n"
-        "## 数据结构\n列出关键的数据结构、状态变量、接口定义\n"
-        "## 交互流程\n描述用户操作→系统响应的关键流程\n"
+        "## 方案概述\n简要说明整体方案思路，包括要构建什么、核心技术选型（1-2句）\n"
+        "## 页面结构\n列出所有页面/视图及其层级关系，标注每个页面的核心 UI 元素\n"
+        "## 组件树\n列出核心组件及其嵌套关系、每个组件的 props/状态\n"
+        "## 数据与状态\n列出关键数据结构、状态变量、localStorage/sessionStorage 使用\n"
+        "## 交互流程\n描述用户操作→系统响应的关键流程，覆盖正常流程+空状态+错误状态\n"
+        "## 样式方案\n色彩系统、布局方式（Flex/Grid）、关键 CSS 变量、响应式策略\n"
         "## 文件清单\n列出需要创建或修改的所有文件及各自用途\n"
         "## 风险点\n列出实现中可能遇到的问题和注意事项\n\n"
-        "如果历史审批中有驳回原因，在方案概述中说明如何处理。"
+        "如果历史审批中有驳回原因，在方案概述中说明如何处理。\n"
         "输出内容要具体、可执行，避免泛泛而谈。例如用户要俄罗斯方块，就具体到"
-        "棋盘用二维数组、七种方块用坐标矩阵、消行算法如何实现等。"
+        "棋盘用二维数组、七种方块用坐标矩阵、消行算法如何实现、键盘事件绑定等。"
     ),
     "review": (
         "你是 DevFlow Engine 的代码评审 Agent。你的职责是多维度审查代码变更的质量。"
@@ -109,8 +119,64 @@ def get_base_url() -> str:
     return os.getenv("DEVFLOW_LLM_BASE_URL", DEFAULT_BASE_URL).rstrip("/")
 
 
-def build_context(pipeline: Pipeline) -> str:
+# ── Multi-Provider Support ──
+# Provider A = primary (existing env vars), Provider B = secondary (opt-in)
+# Each stage can be routed to a different provider via STAGE_PROVIDER
+
+STAGE_PROVIDER = {
+    "requirement": "a",
+    "design": "a",
+    "code": "a",
+    "test": "a",
+    "review": "a",
+    "delivery": "a",
+}
+
+
+def _resolve_provider_config(stage_id: str) -> dict:
+    """Return {"base_url": str, "api_key": str} for the given stage."""
+    provider = os.getenv("DEVFLOW_LLM_PROVIDER", "").strip().lower()
+    # Runtime override: if DEVFLOW_LLM_PROVIDER is set (e.g. "b"), all stages use that provider
+    if provider and provider in ("a", "b"):
+        stage_provider = provider
+    else:
+        stage_provider = STAGE_PROVIDER.get(stage_id, "a")
+
+    if stage_provider == "b":
+        base_url = os.getenv("DEVFLOW_LLM_BASE_URL_B", "").strip().rstrip("/")
+        api_key = os.getenv("DEVFLOW_LLM_API_KEY_B", "").strip()
+        if base_url and api_key:
+            return {"base_url": base_url, "api_key": api_key}
+        # Fall back to provider A if B is not configured
+
+    base_url = os.getenv("DEVFLOW_LLM_BASE_URL", DEFAULT_BASE_URL).rstrip("/")
+    api_key = os.getenv("DEVFLOW_LLM_API_KEY") or os.getenv("OPENAI_API_KEY") or ""
+    return {"base_url": base_url, "api_key": api_key}
+
+
+def get_provider_name(stage_id: str) -> str:
+    """Return a human-readable provider name for display."""
+    config = _resolve_provider_config(stage_id)
+    url = config["base_url"]
+    if "lingyaai" in url:
+        return "LingYaa AI"
+    if "openai" in url:
+        return "OpenAI"
+    if "deepseek" in url:
+        return "DeepSeek"
+    # Extract hostname
+    try:
+        from urllib.parse import urlparse
+        host = urlparse(url).hostname or url
+        return host[:30]
+    except Exception:
+        return url[:30]
+
+
+def build_context(pipeline: Pipeline, stage_id: str = "") -> str:
     """Build a summary of review history and previous stage artifacts for the current stage."""
+    from backend.git_manager import get_diff_summary
+
     parts = []
 
     if pipeline.reviewHistory:
@@ -130,6 +196,34 @@ def build_context(pipeline: Pipeline) -> str:
                 f"【{artifact.stageName}】\n{artifact.content[:1500]}"
             )
         parts.append("已有阶段产物：\n\n" + "\n\n".join(artifact_lines))
+
+    # Code index summary for design, code, review, and delivery stages
+    if stage_id in ("design", "code", "review", "delivery"):
+        try:
+            from backend.pipeline_engine import get_code_index
+            idx = get_code_index(pipeline.id)
+            if idx:
+                summary = idx.summary()
+                idx_lines = [
+                    f"代码索引：{summary['total_files']} 个文件，{summary['total_symbols']} 个符号",
+                    f"符号分布：{summary['by_kind']}",
+                ]
+                # List top files by symbol count
+                top_files = sorted(summary["by_file"].items(), key=lambda x: x[1], reverse=True)[:8]
+                for fname, count in top_files:
+                    key_symbols = [s.name for s in idx.symbols if s.file == fname][:5]
+                    idx_lines.append(f"  {fname} ({count} 符号): {', '.join(key_symbols)}")
+                parts.append("代码结构索引：\n" + "\n".join(idx_lines))
+        except Exception:
+            pass
+
+    # Include git diff summary for delivery stage context
+    from backend.code_executor import RUNS_DIR
+    run_root = RUNS_DIR / pipeline.id
+    if (run_root / ".git").exists():
+        diff_text = get_diff_summary(run_root)
+        if diff_text and diff_text != "暂无 Git 变更信息":
+            parts.append(f"Git 变更信息：\n{diff_text[:2000]}")
 
     return "\n\n".join(parts) if parts else "暂无上下文"
 
@@ -157,7 +251,7 @@ def build_messages(stage: Stage, pipeline: Pipeline) -> list[dict[str, str]]:
             "content": (
                 f"当前阶段：{stage.name}\n"
                 f"用户原始需求：{pipeline.requirement}\n\n"
-                f"{build_context(pipeline)}\n\n"
+                f"{build_context(pipeline, stage.id)}\n\n"
                 "请直接输出这一阶段的最终产物，用中文，结构清晰。"
             ),
         },
@@ -172,36 +266,71 @@ def build_payload(stage: Stage, pipeline: Pipeline) -> dict[str, Any]:
     }
 
 
-def post_chat_completion(payload: dict[str, Any]) -> dict[str, Any]:
-    api_key = get_api_key()
+def post_chat_completion(payload: dict[str, Any], stage_id: str = "") -> dict[str, Any]:
+    config = _resolve_provider_config(stage_id)
     response = httpx.post(
-        f"{get_base_url()}/v1/chat/completions",
+        f"{config['base_url']}/v1/chat/completions",
         headers={
-            "Authorization": f"Bearer {api_key}",
+            "Authorization": f"Bearer {config['api_key']}",
             "Content-Type": "application/json",
         },
         json=payload,
-        timeout=120,
+        timeout=300,
     )
     response.raise_for_status()
     return response.json()
 
 
 def extract_content(response: dict[str, Any]) -> str:
+    """Extract the best text content from an LLM response. For backward compat."""
+    content, _usage, _reasoning = _parse_response(response)
+    return content
+
+
+def extract_content_and_usage(response: dict[str, Any]) -> tuple[str, dict, str]:
+    """Extract content, token usage, and reasoning from an LLM response."""
+    return _parse_response(response)
+
+
+def _parse_response(response: dict[str, Any]) -> tuple[str, dict, str]:
+    """Parse LLM response into (content, usage_dict, reasoning_content)."""
     choices = response.get("choices") or []
     if not choices:
-        return ""
+        return "", {}, ""
     message = choices[0].get("message") or {}
-    return (message.get("content") or "").strip()
+    content = (message.get("content") or "").strip()
+    reasoning = (message.get("reasoning_content") or "").strip()
+    usage = response.get("usage") or {}
+
+    # Try each source: content, reasoning, preferring the one with parseable JSON
+    best = content  # default to content
+    for source in (content, reasoning):
+        if not source:
+            continue
+        if "{" in source or "```" in source:
+            best = source
+            break
+
+    # If neither has obvious structured output, pick the longer one
+    if best == content and len(reasoning) > len(content):
+        best = reasoning
+
+    return best, usage, reasoning
 
 
 def run_llm_agent(stage: Stage, pipeline: Pipeline) -> tuple[str, str] | None:
-    if not llm_enabled() or not get_api_key():
+    """Run single LLM agent. Returns (content, model) for backward compat."""
+    if not llm_enabled():
+        return None
+
+    config = _resolve_provider_config(stage.id)
+    if not config["api_key"]:
         return None
 
     try:
         payload = build_payload(stage, pipeline)
-        content = extract_content(post_chat_completion(payload))
+        response = post_chat_completion(payload, stage.id)
+        content, _usage, _reasoning = extract_content_and_usage(response)
     except Exception:
         return None
 
@@ -209,6 +338,28 @@ def run_llm_agent(stage: Stage, pipeline: Pipeline) -> tuple[str, str] | None:
         return None
 
     return content, payload["model"]
+
+
+def run_llm_agent_with_metrics(stage: Stage, pipeline: Pipeline) -> tuple[str, str, dict, str] | None:
+    """Run single LLM agent with metrics. Returns (content, model, usage, reasoning)."""
+    if not llm_enabled():
+        return None
+
+    config = _resolve_provider_config(stage.id)
+    if not config["api_key"]:
+        return None
+
+    try:
+        payload = build_payload(stage, pipeline)
+        response = post_chat_completion(payload, stage.id)
+        content, usage, reasoning = extract_content_and_usage(response)
+    except Exception:
+        return None
+
+    if not content:
+        return None
+
+    return content, payload["model"], usage, reasoning
 
 
 def generate_visual_plan(requirement: str, design_text: str) -> dict | None:
@@ -251,7 +402,7 @@ def generate_visual_plan(requirement: str, design_text: str) -> dict | None:
             ],
             "temperature": 0.2,
         }
-        response = post_chat_completion(payload)
+        response = post_chat_completion(payload, "design")
         raw = extract_content(response)
     except Exception:
         return None
@@ -323,7 +474,7 @@ def generate_requirement_prototype(requirement: str, analysis_text: str) -> str 
             ],
             "temperature": 0.2,
         }
-        response = post_chat_completion(payload)
+        response = post_chat_completion(payload, "requirement")
         raw = extract_content(response)
     except Exception:
         return None
@@ -359,26 +510,33 @@ async def stream_llm_agent(stage: Stage, pipeline: Pipeline) -> AsyncGenerator[s
         "event: done\ndata: " when complete
         "event: error\ndata: <message>" on failure
     """
-    if not llm_enabled() or not get_api_key():
-        yield "event: error\ndata: LLM 未启用或 API Key 未设置\n\n"
+    if not llm_enabled():
+        yield "event: fail\ndata: LLM 未启用或 API Key 未设置\n\n"
         return
 
-    yield f"event: system\ndata: 正在调用 {MODEL_ROUTER.get(stage.id, 'unknown')} 模型…\n\n"
+    config = _resolve_provider_config(stage.id)
+    if not config["api_key"]:
+        yield "event: fail\ndata: LLM API Key 未设置\n\n"
+        return
+
+    model_name = MODEL_ROUTER.get(stage.id, "unknown")
+    provider_name = get_provider_name(stage.id)
+    yield f"event: system\ndata: 正在调用 {model_name} 模型（{provider_name}）…\n\n"
     yield f"event: stage\ndata: {stage.name}\n\n"
 
     payload = build_payload(stage, pipeline)
     payload["stream"] = True
 
-    api_key = get_api_key()
     full_content = ""
+    stream_usage = {}  # token usage from streaming
 
     try:
         async with httpx.AsyncClient(timeout=300) as client:
             async with client.stream(
                 "POST",
-                f"{get_base_url()}/v1/chat/completions",
+                f"{config['base_url']}/v1/chat/completions",
                 headers={
-                    "Authorization": f"Bearer {api_key}",
+                    "Authorization": f"Bearer {config['api_key']}",
                     "Content-Type": "application/json",
                 },
                 json=payload,
@@ -395,6 +553,9 @@ async def stream_llm_agent(stage: Stage, pipeline: Pipeline) -> AsyncGenerator[s
 
                     try:
                         data = json.loads(data_str)
+                        # Capture usage if present in this chunk
+                        if "usage" in data:
+                            stream_usage = data["usage"]
                         choices = data.get("choices") or []
                         if not choices:
                             continue
@@ -407,16 +568,20 @@ async def stream_llm_agent(stage: Stage, pipeline: Pipeline) -> AsyncGenerator[s
                         continue
 
     except Exception as exc:
-        yield f"event: error\ndata: LLM 调用失败：{exc}\n\n"
+        yield f"event: fail\ndata: LLM 调用失败：{exc}\n\n"
         return
 
     if not full_content.strip():
-        yield "event: error\ndata: LLM 返回了空内容\n\n"
+        yield "event: fail\ndata: LLM 返回了空内容\n\n"
         return
 
-    # Store the full content for later retrieval
+    # Build result with usage data
+    result_data = {"content": full_content, "model": payload["model"]}
+    if stream_usage:
+        result_data["usage"] = stream_usage
+
     yield f"event: system\ndata: 已接收 {len(full_content)} 个字符，正在处理产物…\n\n"
-    yield f"event: result\ndata: {json.dumps({'content': full_content, 'model': payload['model']})}\n\n"
+    yield f"event: result\ndata: {json.dumps(result_data)}\n\n"
 
 
 # ── PRD Mermaid Diagram Generation ──
@@ -432,18 +597,31 @@ def generate_prd_mermaid(requirement: str, prd_text: str) -> dict | None:
         return None
 
     system_prompt = (
-        "你是一个技术文档可视化专家。你的任务是根据 PRD（产品需求文档）生成 Mermaid 格式的思维导图或流程图。\n\n"
-        "要求：\n"
+        "你是一个技术文档可视化专家。你的任务是根据 PRD（产品需求文档）生成 Mermaid 格式的思维导图。\n\n"
+        "严格要求（必须遵守，否则渲染失败）：\n"
         "- 只输出 Mermaid 代码，不要 markdown 包裹，不要解释\n"
-        "- 使用 mindmap 或 graph TD 格式\n"
-        "- 将 PRD 中的核心需求、功能模块、用户角色、验收标准等关键信息组织成清晰的层级结构\n"
-        "- 中文内容用双引号包裹，例如：mindmap\n  root(\"需求名称\")\n    功能模块\n      \"功能1\"\n      \"功能2\"\n"
-        "- 不要超过 50 行\n"
-        "- 确保 Mermaid 语法正确，可以直接渲染\n\n"
-        "示例输出：\n"
-        "mindmap\n  root(\"任务管理系统筛选功能\")\n    用户角色\n      \"普通用户\"\n      \"管理员\"\n    "
-        "核心功能\n      \"按优先级筛选\"\n      \"按状态筛选\"\n      \"组合筛选\"\n    "
-        "验收标准\n      \"筛选结果准确\"\n      \"响应时间<200ms\"\n"
+        "- 必须使用 mindmap 格式（不要用 graph、flowchart 等其他格式）\n"
+        "- root 节点必须使用双括号语法：root((中央主题))\n"
+        "- 使用 2 个空格缩进表示层级，不要用 Tab\n"
+        "- 同一层级的所有节点对齐（空格数相同）\n"
+        "- 中文节点文本不需要引号，直接写；包含特殊字符时才用双引号\n"
+        "- 不要超过 40 行\n\n"
+        "正确示例（请严格模仿此格式）：\n"
+        "mindmap\n"
+        "  root((任务管理系统筛选功能))\n"
+        "    用户角色\n"
+        "      普通用户\n"
+        "      管理员\n"
+        "    核心功能\n"
+        "      按优先级筛选\n"
+        "      按状态筛选\n"
+        "      组合筛选\n"
+        "    验收标准\n"
+        "      筛选结果准确\n"
+        "      响应时间小于200ms\n"
+        "    技术约束\n"
+        "      纯前端实现\n"
+        "      不依赖后端API\n"
     )
 
     user_prompt = (
@@ -461,7 +639,7 @@ def generate_prd_mermaid(requirement: str, prd_text: str) -> dict | None:
             ],
             "temperature": 0.2,
         }
-        response = post_chat_completion(payload)
+        response = post_chat_completion(payload, "requirement")
         raw = extract_content(response)
     except Exception:
         return None
@@ -490,14 +668,14 @@ def generate_prd_mermaid(requirement: str, prd_text: str) -> dict | None:
 
 # ── PRD Image Generation Fallback ──
 
-def _post_image_generation(payload: dict) -> dict | None:
+def _post_image_generation(payload: dict, stage_id: str = "") -> dict | None:
     """Call the /v1/images/generations endpoint (OpenAI-compatible)."""
-    api_key = get_api_key()
+    config = _resolve_provider_config(stage_id)
     try:
         response = httpx.post(
-            f"{get_base_url()}/v1/images/generations",
+            f"{config['base_url']}/v1/images/generations",
             headers={
-                "Authorization": f"Bearer {api_key}",
+                "Authorization": f"Bearer {config['api_key']}",
                 "Content-Type": "application/json",
             },
             json=payload,
@@ -533,7 +711,7 @@ def generate_prd_image(requirement: str, prd_text: str) -> str | None:
             ],
             "temperature": 0.3,
         }
-        prompt_response = post_chat_completion(prompt_payload)
+        prompt_response = post_chat_completion(prompt_payload, "requirement")
         image_prompt = extract_content(prompt_response)
     except Exception:
         return None
@@ -549,10 +727,128 @@ def generate_prd_image(requirement: str, prd_text: str) -> str | None:
             "prompt": image_prompt.strip(),
             "n": 1,
             "size": "1024x768",
-        })
+        }, "requirement")
         if result:
             data = (result.get("data") or [])[0] if result.get("data") else None
             if data:
                 return data.get("url") or data.get("b64_json")
 
     return None
+
+
+# ── Element Modification Streaming ──
+
+
+async def stream_element_modification_llm(
+    element_info: dict,
+    change_request: str,
+    file_content: str,
+    file_path: str,
+    iframe_type: str,
+) -> "AsyncGenerator[str, None]":
+    """Stream LLM response for element-level code modification. Yields SSE strings."""
+    if not llm_enabled():
+        yield "event: fail\ndata: LLM 未启用，请设置 DEVFLOW_LLM_ENABLED=true\n\n"
+        return
+
+    config = _resolve_provider_config("code")
+    if not config["api_key"]:
+        yield "event: fail\ndata: LLM API Key 未设置\n\n"
+        return
+
+    model_name = MODEL_ROUTER.get("code", "deepseek-v4-flash")
+    yield f"event: system\ndata: 正在调用 {model_name} 模型修改元素…\n\n"
+
+    system_prompt = (
+        "你是一个前端代码修改助手。根据用户选中的 DOM 元素信息和自然语言修改请求，"
+        "精确修改对应的前端代码。\n\n"
+        "输出规则（最高优先级）：\n"
+        "- 只返回一个 JSON 对象，不要 markdown 代码块，不要任何解释文字\n"
+        '- JSON 格式：{"file":"文件路径","content":"完整的修改后文件内容"}\n'
+        "- content 必须是完整的文件内容（不是 diff），直接覆盖写入目标文件\n"
+        "- 只修改与用户要求相关的部分，严格保持其他代码不变\n"
+        "- 确保修改后的代码语法正确、风格与原文件一致\n"
+        "- 如果是原型 HTML 修改，保持低保真风格（灰阶为主、简洁边框）"
+    )
+
+    styles_text = ", ".join(
+        f"{k}: {v}" for k, v in element_info.get("computedStyles", {}).items()
+    ) if element_info.get("computedStyles") else "无"
+
+    user_prompt = (
+        f"## 修改目标\n"
+        f"文件路径：{file_path}\n"
+        f"预览类型：{iframe_type}\n\n"
+        f"## 选中元素\n"
+        f"标签名：{element_info.get('tagName', 'unknown')}\n"
+        f"CSS 选择器：{element_info.get('selector', 'unknown')}\n"
+        f"元素文本：{element_info.get('text', '')}\n"
+        f"元素 HTML：\n```html\n{element_info.get('html', '')}\n```\n"
+        f"计算样式：{styles_text}\n\n"
+        f"## 用户修改请求\n"
+        f"{change_request}\n\n"
+        f"## 当前文件完整内容\n"
+        f"```\n{file_content[:8000]}\n```\n\n"
+        f"请输出修改后的完整文件内容。"
+    )
+
+    payload = {
+        "model": model_name,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        "temperature": 0.2,
+        "stream": True,
+    }
+
+    full_content = ""
+
+    try:
+        async with httpx.AsyncClient(timeout=300) as client:
+            async with client.stream(
+                "POST",
+                f"{config['base_url']}/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {config['api_key']}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            ) as response:
+                response.raise_for_status()
+
+                async for line in response.aiter_lines():
+                    if not line or not line.startswith("data: "):
+                        continue
+                    data_str = line[6:]
+                    if data_str == "[DONE]":
+                        break
+                    try:
+                        data = json.loads(data_str)
+                        choices = data.get("choices") or []
+                        if not choices:
+                            continue
+                        delta = choices[0].get("delta") or {}
+                        content = delta.get("content") or ""
+                        if content:
+                            full_content += content
+                            yield f"event: chunk\ndata: {content}\n\n"
+                    except (json.JSONDecodeError, KeyError, IndexError):
+                        continue
+
+    except Exception as exc:
+        yield f"event: fail\ndata: LLM 调用失败：{exc}\n\n"
+        return
+
+    if not full_content.strip():
+        yield "event: fail\ndata: LLM 返回了空内容\n\n"
+        return
+
+    from backend.code_executor import extract_json_object
+
+    result = extract_json_object(full_content)
+    if not result or not isinstance(result.get("content"), str):
+        yield "event: fail\ndata: LLM 返回格式不正确，无法解析修改结果\n\n"
+        return
+
+    yield f"event: result\ndata: {json.dumps({'content': result['content'], 'file': result.get('file', file_path)})}\n\n"

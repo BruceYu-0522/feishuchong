@@ -37,7 +37,7 @@
       ↓
 代码评审 Agent ─── 多维度审查（正确性/安全性/规范性）
       ↓
-人工审批 ←── Approve / Reject
+人工审批 ←── Approve / Reject（驳回后自动回到代码阶段，最多 3 次）
       ↓
 交付总结 Agent ─── 变更摘要 + 测试摘要 + MR 描述草稿
       ↓
@@ -46,79 +46,115 @@
 
 ## 快速开始
 
-### 1. 安装依赖
+### 方式一：Docker Compose（推荐）
+
+```bash
+# 1. 克隆或进入项目目录
+cd feishu
+
+# 2. 配置环境变量（创建 .env 文件）
+echo DEVFLOW_LLM_ENABLED=true > .env
+echo DEVFLOW_LLM_API_KEY=你的API密钥 >> .env
+
+# 3. 启动
+docker compose up -d
+
+# 4. 打开浏览器访问
+# http://localhost:8001
+```
+
+### 方式二：本地运行
+
+#### 1. 环境要求
+
+- Python 3.11+
+- Node.js 18+（仅用于运行测试）
+
+#### 2. 安装 Python 依赖
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. 配置 LLM API
+#### 3. 配置 LLM API
 
-```bash
-# Windows PowerShell
+**Windows PowerShell：**
+```powershell
 $env:DEVFLOW_LLM_ENABLED="true"
 $env:DEVFLOW_LLM_BASE_URL="https://api.lingyaai.cn"
 $env:DEVFLOW_LLM_API_KEY="你的API密钥"
+```
 
-# Linux / macOS
+**Linux / macOS：**
+```bash
 export DEVFLOW_LLM_ENABLED=true
 export DEVFLOW_LLM_BASE_URL=https://api.lingyaai.cn
 export DEVFLOW_LLM_API_KEY=你的API密钥
 ```
 
-系统通过中转站 API 按阶段路由到不同模型：
+#### 4. 启动后端
+
+```bash
+python -m uvicorn backend.main:app --host 0.0.0.0 --port 8001 --reload
+```
+
+后端启动后访问：
+- 前端页面：http://localhost:8001
+- API 文档：http://localhost:8001/docs
+
+#### 5. 使用流程
+
+1. 在输入框中输入任意功能需求（例如："给任务管理系统增加暗色模式"）
+2. 点击"开始生成"
+3. 在需求分析检查点查看结构化 PRD、思维导图和需求原型，选择 Approve 或 Reject
+4. 通过后等待方案设计完成，并在审批点查看产物（包括 AI 生成的方案蓝图）
+5. 继续运行，代码生成、测试生成、代码评审和交付总结都会逐一停下等待确认
+6. 通过交付总结检查点后，流程进入完成状态
+
+### 多模型提供商切换
+
+系统支持最多 2 个 LLM 提供商，每个阶段可独立配置：
+
+```bash
+# Provider A（主提供商，默认）
+export DEVFLOW_LLM_BASE_URL=https://api.lingyaai.cn
+export DEVFLOW_LLM_API_KEY=你的密钥A
+
+# Provider B（备选提供商）
+export DEVFLOW_LLM_BASE_URL_B=https://api.openai.com
+export DEVFLOW_LLM_API_KEY_B=你的密钥B
+
+# 运行时全局切换（所有阶段使用 Provider B）
+export DEVFLOW_LLM_PROVIDER=b
+```
+
+当前默认模型路由（所有阶段使用 `deepseek-v4-flash`）：
 
 | 阶段 | Agent | 模型 |
 |---|---|---|
 | 需求分析 | 需求分析 Agent | `deepseek-v4-flash` |
-| 方案设计 | 方案设计 Agent | `gpt-5.4` |
-| 代码生成 | 代码生成 Agent | `claude-sonnet-4-5-20250929` |
-| 测试生成 | 测试生成 Agent | `deepseek-v4-pro` |
-| 代码评审 | 代码评审 Agent | `claude-opus-4-5-20251101` |
+| 方案设计 | 方案设计 Agent | `deepseek-v4-flash` |
+| 代码生成 | 代码生成 Agent | `deepseek-v4-flash` |
+| 测试生成 | 测试生成 Agent | `deepseek-v4-flash` |
+| 代码评审 | 代码评审 Agent | `deepseek-v4-flash` |
 | 交付总结 | 交付总结 Agent | `deepseek-v4-flash` |
 
-### 3. 启动后端
+> 如需按阶段使用不同模型，修改 `backend/llm_runner.py` 中的 `MODEL_ROUTER` 字典。
 
-```bash
-uvicorn backend.main:app --reload
-```
+### 自动重试限制
 
-API 文档：http://127.0.0.1:8000/docs
-
-### 4. 打开前端
-
-```bash
-python -m http.server 5500
-```
-
-访问 http://127.0.0.1:5500/index.html
-
-### 5. 运行一个 Pipeline
-
-1. 在输入框中输入任意功能需求（例如："给任务管理系统增加暗色模式"）
-2. 点击"开始生成"
-3. 在需求分析检查点查看结构化 PRD、澄清问题和需求原型，选择 Approve 或 Reject
-4. 通过后等待方案设计完成，并在方案审批点查看产物（包括 AI 生成的方案蓝图）
-5. 继续运行，代码生成、测试生成、代码评审和交付总结都会逐一停下等待确认
-6. 通过交付总结检查点后，流程进入完成状态
-
-### 6. 验证生成的代码
-
-```bash
-# 查看运行副本中的代码改动
-ls devflow-runs/<pipeline-id>/target-app/
-
-# 运行 AI 生成的测试
-node devflow-runs/<pipeline-id>/target-app/tests/*.test.js
-```
+评审阶段驳回代码后，系统会自动回到代码生成阶段重新执行。为防止无限循环，系统限制最多连续驳回 **3 次**。超过限制后需要手动审批通过或人工介入。
 
 ## 运行测试
 
 ```bash
-pytest backend/tests/test_pipeline_api.py -q
+# 后端测试（18 个）
+pytest backend/tests/test_pipeline_api.py -v
+
+# 前端测试
 node tests/pipeline-core.test.js
-node --check pipeline-core.js
-node --check script.js
+node tests/artifact-renderer.test.js
+node tests/clarification-flow.test.js
 ```
 
 ## 项目结构
@@ -134,16 +170,19 @@ node --check script.js
 │   ├── styles.css
 │   └── app.js
 ├── requirements.txt                   # Python 后端依赖
+├── Dockerfile                         # Docker 镜像定义
+├── docker-compose.yml                 # Docker Compose 一键部署
+├── .dockerignore                      # Docker 构建忽略文件
 ├── backend/
-│   ├── main.py                         # FastAPI 入口（6 个 API 端点）
-│   ├── pipeline_engine.py              # Pipeline 状态机（纯 LLM 驱动）
-│   ├── code_executor.py                # AI 代码生成与执行（无硬编码 fallback）
-│   ├── llm_runner.py                   # Skill-driven LLM 调用与模型路由
-│   ├── schemas.py                      # Pydantic 数据模型
-│   ├── skills.py                       # Skill 元数据读取
-│   ├── storage.py                      # 内存存储
+│   ├── main.py                        # FastAPI 入口
+│   ├── pipeline_engine.py             # Pipeline 状态机（纯 LLM 驱动）
+│   ├── code_executor.py               # AI 代码生成与执行
+│   ├── llm_runner.py                  # Skill-driven LLM 调用与多提供商路由
+│   ├── schemas.py                     # Pydantic 数据模型
+│   ├── skills.py                      # Skill 元数据读取
+│   ├── storage.py                     # 内存存储
 │   └── tests/
-│       └── test_pipeline_api.py        # 后端 API 测试（含 LLM mock）
+│       └── test_pipeline_api.py       # 后端 API 测试（含 LLM mock）
 ├── skills/
 │   ├── requirements-analysis.skill.md
 │   ├── technical-design.skill.md
@@ -152,7 +191,9 @@ node --check script.js
 │   ├── code-review.skill.md
 │   └── delivery-summary.skill.md
 ├── tests/
-│   └── pipeline-core.test.js          # 前端核心逻辑测试
+│   ├── pipeline-core.test.js
+│   ├── artifact-renderer.test.js
+│   └── clarification-flow.test.js
 └── docs/
     ├── MVP定义.md
     └── 阶段输入输出与Agent设计.md
@@ -169,16 +210,3 @@ node --check script.js
 | POST | `/pipelines/{id}/run-until-review` | 自动运行到审查点 |
 | POST | `/pipelines/{id}/review` | 提交审批决策 |
 | GET | `/runs/{id}/target-app/{path}` | 预览生成的代码产物 |
-
-## 与旧版的关键区别
-
-旧版（已废弃）的问题：
-- Agent 输出全部硬编码，无论输入什么需求都返回"优先级筛选"相关结果
-- 前端有本地 mock 模式，完全绕过 AI
-- 代码生成是写死的字符串替换
-
-当前版本：
-- **AI 是唯一执行路径。** 不配置 LLM 无法运行，不会悄悄降级到假数据。
-- **通用引擎。** 输入任何需求，AI Agent 都会基于实际输入生成对应产物。
-- **真实代码生成。** 代码 Agent 读取项目文件，通过 LLM 生成完整代码并写入磁盘。
-- **动态方案蓝图。** 从 AI 输出的方案内容中动态提取结构，不再硬编码。

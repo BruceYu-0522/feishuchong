@@ -11,16 +11,26 @@ import zipfile
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from backend.code_executor import RUNS_DIR
 from backend.pipeline_engine import (
+    build_and_cache_index,
     create_pipeline,
+    get_code_index,
     run_next_stage,
     run_until_review,
     run_until_review_with_stream,
+    stream_element_modification,
     submit_review,
 )
-from backend.schemas import CreatePipelineRequest, Pipeline, ReviewRequest
+from backend.schemas import (
+    CreatePipelineRequest,
+    Pipeline,
+    PipelineStats,
+    ReviewRequest,
+    StageStats,
+)
 from backend.storage import store
 
 
@@ -46,7 +56,7 @@ def health() -> dict[str, str]:
 
 @app.post("/pipelines", response_model=Pipeline)
 def create_pipeline_endpoint(request: CreatePipelineRequest) -> Pipeline:
-    return store.save(create_pipeline(request.requirement, request.projectPath))
+    return store.save(create_pipeline(request.requirement, request.projectPath, request.template))
 
 
 @app.get("/pipelines/{pipeline_id}", response_model=Pipeline)
@@ -61,18 +71,18 @@ def run_next_endpoint(pipeline_id: str) -> Pipeline:
 
 
 @app.post("/pipelines/{pipeline_id}/run-until-review", response_model=Pipeline)
-def run_until_review_endpoint(pipeline_id: str) -> Pipeline:
+def run_until_review_endpoint(pipeline_id: str, auto: bool = False) -> Pipeline:
     pipeline = store.get(pipeline_id)
-    return store.save(run_until_review(pipeline))
+    return store.save(run_until_review(pipeline, auto_mode=auto))
 
 
 @app.get("/pipelines/{pipeline_id}/stream-run")
-async def stream_run_endpoint(pipeline_id: str):
+async def stream_run_endpoint(pipeline_id: str, auto: bool = False):
     """SSE endpoint that streams LLM output and system operations in real-time."""
     pipeline = store.get(pipeline_id)
 
     async def event_stream():
-        async for event in run_until_review_with_stream(pipeline):
+        async for event in run_until_review_with_stream(pipeline, auto_mode=auto):
             yield event
         # Save pipeline state after streaming
         store.save(pipeline)
@@ -133,10 +143,23 @@ def list_workspace_endpoint(pipeline_id: str):
                     files.append({"name": rel, "size": f.stat().st_size})
                     seen.add(rel)
 
-    if not files:
-        return {"files": [], "path": str(run_dir)}
+    # Git status for the run directory
+    git_info = None
+    try:
+        from backend.git_manager import get_git_status_for_display
+        git_info = get_git_status_for_display(run_dir)
+    except Exception:
+        pass
 
-    return {"files": files, "path": str(run_dir)}
+    if not files:
+        result = {"files": [], "path": str(run_dir)}
+    else:
+        result = {"files": files, "path": str(run_dir)}
+
+    if git_info:
+        result["git"] = git_info
+
+    return result
 
 
 @app.get("/pipelines/{pipeline_id}/workspace/files/{file_path:path}")
@@ -184,3 +207,173 @@ def export_workspace_endpoint(pipeline_id: str):
         media_type="application/zip",
         headers={"Content-Disposition": f"attachment; filename=workspace-{pipeline_id}.zip"},
     )
+
+
+# ── Code Semantic Index Endpoints ──
+
+
+@app.get("/pipelines/{pipeline_id}/code-index")
+def get_code_index_endpoint(pipeline_id: str):
+    """Return the semantic code index summary for a pipeline."""
+    idx = get_code_index(pipeline_id)
+    if not idx:
+        # Try building it on demand
+        idx = build_and_cache_index(pipeline_id)
+    if not idx:
+        return {"total_symbols": 0, "total_files": 0, "by_kind": {}, "by_file": {}}
+    return idx.summary()
+
+
+@app.get("/pipelines/{pipeline_id}/code-search")
+def search_code_endpoint(pipeline_id: str, q: str = "", type: str = "symbol"):
+    """Search the code index. type=symbol (default) or type=content for full-text."""
+    if not q.strip():
+        return {"results": []}
+
+    idx = get_code_index(pipeline_id)
+    if not idx:
+        idx = build_and_cache_index(pipeline_id)
+    if not idx:
+        return {"results": []}
+
+    if type == "content":
+        results = idx.search_content(q)
+    else:
+        results = [
+            {"name": s.name, "kind": s.kind, "file": s.file, "line": s.line, "snippet": s.snippet}
+            for s in idx.search(q)
+        ]
+    return {"results": results, "query": q, "type": type}
+
+
+# ── Observability Endpoint ──
+
+
+@app.get("/pipelines/{pipeline_id}/stats")
+def get_pipeline_stats_endpoint(pipeline_id: str):
+    """Return observability stats for a pipeline."""
+    pipeline = store.get(pipeline_id)
+    if not pipeline:
+        raise HTTPException(status_code=404, detail="流水线未找到")
+
+    stage_stats = []
+    total_latency = 0
+    total_prompt = 0
+    total_comp = 0
+    total_all = 0
+    completed_count = 0
+
+    for stage in pipeline.stages:
+        artifact = pipeline.artifacts.get(stage.id)
+        if artifact:
+            status = "completed"
+            completed_count += 1
+        else:
+            status = "pending"
+
+        stage_stats.append(StageStats(
+            stageId=stage.id,
+            stageName=stage.name,
+            agent=stage.agent,
+            model=artifact.model if artifact else "",
+            status=status,
+            startedAt=artifact.startedAt if artifact else "",
+            completedAt=artifact.completedAt if artifact else "",
+            latencyMs=artifact.latencyMs if artifact else 0,
+            promptTokens=artifact.promptTokens if artifact else 0,
+            completionTokens=artifact.completionTokens if artifact else 0,
+            totalTokens=artifact.totalTokens if artifact else 0,
+            attempt=artifact.attempt if artifact else 1,
+        ))
+        if artifact:
+            total_latency += artifact.latencyMs
+            total_prompt += artifact.promptTokens
+            total_comp += artifact.completionTokens
+            total_all += artifact.totalTokens
+
+    success_rate = completed_count / len(pipeline.stages) if pipeline.stages else 0.0
+
+    return PipelineStats(
+        pipelineId=pipeline_id,
+        totalLatencyMs=total_latency,
+        totalPromptTokens=total_prompt,
+        totalCompletionTokens=total_comp,
+        totalTokens=total_all,
+        stages=stage_stats,
+        successRate=round(success_rate, 2),
+    )
+
+
+# ── Element Modification SSE Endpoint ──
+
+
+@app.get("/pipelines/{pipeline_id}/element-modify-stream")
+async def element_modify_stream_endpoint(
+    pipeline_id: str,
+    element_info: str = "",
+    change_request: str = "",
+):
+    """SSE endpoint for element-level conversational modification."""
+    import json as _json
+    from urllib.parse import unquote
+
+    pipeline = store.get(pipeline_id)
+
+    if not change_request.strip():
+        return StreamingResponse(
+            iter(["event: fail\ndata: 修改请求不能为空\n\n"]),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache"},
+        )
+
+    try:
+        info = _json.loads(unquote(element_info))
+    except (ValueError, _json.JSONDecodeError):
+        return StreamingResponse(
+            iter(["event: fail\ndata: 元素信息格式不正确\n\n"]),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache"},
+        )
+
+    async def event_stream():
+        async for event in stream_element_modification(pipeline, info, change_request):
+            yield event
+        store.save(pipeline)
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+# ── Frontend static file serving ──
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+_FRONTEND_EXTENSIONS = {".html", ".css", ".js"}
+
+
+@app.get("/")
+async def serve_index():
+    return FileResponse(_PROJECT_ROOT / "index.html")
+
+
+@app.get("/{file_path:path}")
+async def serve_frontend(file_path: str):
+    if not file_path:
+        return FileResponse(_PROJECT_ROOT / "index.html")
+    target = (_PROJECT_ROOT / file_path).resolve()
+    # Security: ensure target is under project root
+    try:
+        target.relative_to(_PROJECT_ROOT.resolve())
+    except ValueError:
+        raise HTTPException(status_code=404)
+    if not target.is_file():
+        raise HTTPException(status_code=404)
+    if target.suffix.lower() not in _FRONTEND_EXTENSIONS:
+        raise HTTPException(status_code=404)
+    return FileResponse(target)
