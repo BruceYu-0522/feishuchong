@@ -43,7 +43,7 @@
       <circle cx="30" cy="30" r="14" fill="#DCFCE7"/>
       <text x="55" y="35" class="stage">代码生成</text>
       <text x="22" y="72" class="agent">修改目标工程</text>
-      <text x="22" y="96" class="small">变更文件 / Git 提交</text>
+      <text x="22" y="96" class="small">变更文件 / 运行预览</text>
     </g>
     <path d="M606 61 H645" stroke="#38BDF8" stroke-width="4" stroke-linecap="round"/>
     <polygon points="650,61 636,53 636,69" fill="#38BDF8"/>

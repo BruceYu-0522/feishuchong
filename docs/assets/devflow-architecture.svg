@@ -70,6 +70,6 @@
 
   <g>
     <rect x="256" y="502" width="688" height="56" rx="16" fill="#0B1220" stroke="#35526F"/>
-    <text x="300" y="536" class="t">目标代码库 / devflow-runs 工作区 / Git 分支与提交 / 可下载交付包</text>
+    <text x="300" y="536" class="t">目标代码库 / devflow-runs 工作区 / 生成文件预览 / 可下载交付包</text>
   </g>
 </svg>
