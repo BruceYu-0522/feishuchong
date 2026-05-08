@@ -113,19 +113,15 @@ Agent 执行层
 Windows PowerShell：
 
 ```powershell
+.\setup_env.ps1
 docker compose up -d --build
 ```
 
-项目已内置评审专用 `.env` 配置。若需要更换 API Key，可以重新运行：
-
-```powershell
-.\setup_env.ps1
-```
-
-也可以手动复制模板：
+也可以手动配置：
 
 ```bash
 cp .env.example .env
+# 编辑 .env，填入 DEVFLOW_LLM_API_KEY
 docker compose up -d --build
 ```
 
@@ -134,7 +130,7 @@ docker compose up -d --build
 - 控制台：http://localhost:8001
 - Swagger API：http://localhost:8001/docs
 
-为了方便评委老师下载后直接使用，评审专用 API Key 已随 GitHub 项目文件夹中的 `.env` 和 `.env.example` 一并提供，克隆后可直接启动项目。
+为了方便评委老师下载后使用，项目提供了 `setup_env.ps1` 和 `.env.example`。评审用 API Key 请通过复赛平台私密备注或其他非公开方式提供。
 
 ### 方式二：本地运行
 
@@ -145,6 +141,7 @@ pip install -r requirements.txt
 Windows PowerShell：
 
 ```powershell
+.\setup_env.ps1
 python -m uvicorn backend.main:app --host 0.0.0.0 --port 8001 --reload
 ```
 
@@ -157,7 +154,7 @@ export DEVFLOW_LLM_API_KEY="你的 API Key"
 python -m uvicorn backend.main:app --host 0.0.0.0 --port 8001 --reload
 ```
 
-> 当前 Key 仅用于比赛评审。若仓库公开展示，建议在比赛结束后及时作废该临时 Key。
+> 不建议把真实 API Key 提交到 GitHub。若旧 Key 曾经进入仓库历史，请立即在平台中作废并重新生成临时 Key。
 
 ## API 一览
 
