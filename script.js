@@ -7,7 +7,7 @@ window.addEventListener("unhandledrejection", function (event) {
 });
 
 var STAGES = window.DevFlowCore.STAGES;
-var client = window.DevFlowCore.createClient("http://127.0.0.1:8001");
+var client = window.DevFlowCore.createClient(window.DEVFLOW_API_BASE);
 var artifactRenderer = window.DevFlowArtifactRenderer;
 var clarificationFlow = window.DevFlowClarificationFlow;
 
@@ -142,7 +142,7 @@ function getProductPreviewUrl() {
   if (!pipeline) return "";
   var codeArtifact = getArtifact("code");
   if (!codeArtifact || !codeArtifact.workspacePath) return "";
-  return "http://127.0.0.1:8001/runs/" + pipeline.id + "/target-app/index.html";
+  return window.DEVFLOW_API_BASE + "/runs/" + pipeline.id + "/target-app/index.html";
 }
 
 function setStatusBadge() {
@@ -333,7 +333,7 @@ function connectLiveOutput(pipelineId) {
   return new Promise(function (resolve, reject) {
     try {
       liveOutputEventSource = new EventSource(
-        "http://127.0.0.1:8001/pipelines/" + pipelineId + "/stream-run"
+        window.DEVFLOW_API_BASE + "/pipelines/" + pipelineId + "/stream-run"
       );
 
       liveOutputEventSource.addEventListener("chunk", function (event) {
@@ -790,7 +790,7 @@ function renderCodeViewers() {
 
   // Fetch all files
   changedFiles.forEach(function (filePath) {
-    var url = "http://127.0.0.1:8001/pipelines/" + pipeline.id + "/workspace/files/" + filePath;
+    var url = window.DEVFLOW_API_BASE + "/pipelines/" + pipeline.id + "/workspace/files/" + filePath;
     fetch(url)
       .then(function (res) { return res.text(); })
       .then(function (text) {
@@ -821,7 +821,7 @@ function renderProductPreviewInCodeStage() {
   var oldPreview = extrasEl.querySelector(".product-preview-inline");
   if (oldPreview) oldPreview.remove();
 
-  var previewUrl = "http://127.0.0.1:8001/runs/" + pipeline.id + "/target-app/index.html";
+  var previewUrl = window.DEVFLOW_API_BASE + "/runs/" + pipeline.id + "/target-app/index.html";
   var wrapper = document.createElement("div");
   wrapper.className = "product-preview-inline";
   wrapper.innerHTML =
@@ -938,9 +938,9 @@ function renderWorkspace() {
   elements.codeSearch.classList.toggle("hidden", !hasCode);
 
   elements.exportWorkspaceLink.href =
-    "http://127.0.0.1:8001/pipelines/" + pipeline.id + "/workspace/export";
+    window.DEVFLOW_API_BASE + "/pipelines/" + pipeline.id + "/workspace/export";
 
-  fetch("http://127.0.0.1:8001/pipelines/" + pipeline.id + "/workspace")
+  fetch(window.DEVFLOW_API_BASE + "/pipelines/" + pipeline.id + "/workspace")
     .then(function (res) { return res.json(); })
     .then(function (data) {
       var files = data.files || [];
@@ -1013,7 +1013,7 @@ function renderWorkspace() {
 
         var preview = document.createElement("a");
         preview.className = "file-link";
-        preview.href = "http://127.0.0.1:8001/pipelines/" + pipeline.id + "/workspace/files/" + name;
+        preview.href = window.DEVFLOW_API_BASE + "/pipelines/" + pipeline.id + "/workspace/files/" + name;
         preview.target = "_blank";
         preview.textContent = "打开";
 
@@ -1371,7 +1371,7 @@ function performCodeSearch(query) {
     return;
   }
 
-  var url = "http://127.0.0.1:8001/pipelines/" + pipeline.id + "/code-search?q=" + encodeURIComponent(query) + "&type=symbol";
+  var url = window.DEVFLOW_API_BASE + "/pipelines/" + pipeline.id + "/code-search?q=" + encodeURIComponent(query) + "&type=symbol";
   fetch(url)
     .then(function (res) { return res.json(); })
     .then(function (data) {

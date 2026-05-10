@@ -406,7 +406,7 @@
 
     var infoJson = encodeURIComponent(JSON.stringify(selectedInfo));
     var requestText = encodeURIComponent(changeRequest);
-    var url = "http://127.0.0.1:8001/pipelines/" + pipeline.id +
+    var url = window.DEVFLOW_API_BASE + "/pipelines/" + pipeline.id +
       "/element-modify-stream?element_info=" + infoJson + "&change_request=" + requestText;
 
     var es = new EventSource(url);

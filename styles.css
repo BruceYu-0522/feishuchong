@@ -679,7 +679,12 @@ textarea:focus, input:focus {
   align-items: start;
 }
 
-.main-left,
+.main-left {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
 .main-right {
   display: grid;
   gap: 20px;

@@ -55,10 +55,10 @@ cd '$projectRoot'
 `$env:DEVFLOW_LLM_ENABLED='$env:DEVFLOW_LLM_ENABLED'
 `$env:DEVFLOW_LLM_BASE_URL='$env:DEVFLOW_LLM_BASE_URL'
 `$env:DEVFLOW_LLM_API_KEY='$env:DEVFLOW_LLM_API_KEY'
-$python -m uvicorn backend.main:app --reload
+$python -m uvicorn backend.main:app --reload --port 8001
 "@
 
-Write-Host "Starting DevFlow API at http://127.0.0.1:8000" -ForegroundColor Cyan
+Write-Host "Starting DevFlow API at http://127.0.0.1:8001" -ForegroundColor Cyan
 $backend = Start-Process powershell -PassThru -ArgumentList @(
   "-NoProfile",
   "-ExecutionPolicy",

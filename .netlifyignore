@@ -1,0 +1,17 @@
+backend/
+tests/
+devflow-runs/
+skills/
+.pytest_cache/
+.claude/
+.env
+.env.example
+.gitignore
+.dockerignore
+docker-compose.yml
+Dockerfile
+requirements.txt
+*.log
+*.ps1
+*.py
+*.ini
