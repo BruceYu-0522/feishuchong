@@ -69,7 +69,7 @@
    * @param {string} [baseUrl="http://127.0.0.1:8000"]
    */
   function createClient(baseUrl) {
-    var apiBase = (baseUrl || "http://127.0.0.1:8000").replace(/\/+$/, "");
+    var apiBase = (baseUrl != null ? baseUrl : "http://127.0.0.1:8000").replace(/\/+$/, "");
 
     /**
      * @param {string} path
